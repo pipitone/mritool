@@ -11,7 +11,42 @@ class PFile:
     def __init__(self, path): 
         self.path = path
         self.headers = {}
-        
+
+    def guess_kind(self): 
+        # Use the following Heuristic to decide what to do with the pfiles
+        #
+        # There are several kinds of runs represented by pfiles, and they
+        # can be identified (rather inelegantly) in the following ways.
+        #
+        # 1. Spectroscopy 
+        #   - The series_description contains "MRS" (MR Spectroscopy)
+        #   - There is a matching dicom series with a single dicom image in
+        #     it. 
+        #   - The dicom image contains the following identifying attributes: 
+        #         key = 0x0019109e, value == presssci
+        #         key = 0x001910a2, value == pfile ID (e.g. P<pfileid>.7)
+        #
+        # 2. HOS
+        #   - The series_description is "HOS"
+        #
+        # 3. fMRI 
+        #   - They are stored in a folder named fMRI_P<pfileid>
+        #
+        # 4. Raw spiral files
+        #   - They are stored in a folder named rawSprlioPfiles
+        series_description = self.headers["series_description"]
+        foldername = os.path.basename(os.path.dirname(self.path))
+
+        if series_description.startswith("MRS "): 
+            return "spectroscopy"
+        elif series_description == "HOS":
+            return "hos"
+        elif foldername.startswith("fMRI_P"):
+            return "fmri"
+        elif foldername.startswith("rawSprlioPfiles"):
+            return "raw"
+        else: 
+            return "unknown"
 
 def get_pfile_info(path): 
     """Returns a dictionary of header->values for a pfile.
