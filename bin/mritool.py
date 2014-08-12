@@ -1,16 +1,6 @@
 #!/bin/env python
 # vim: expandtab ts=4 sw=4 tw=80: 
-""" 
-Finds and copies exam data into a well-organized folder structure.
-
-Usage: 
-    mritool.py [options] [pull] [<examid>...]
-Options: 
-    -n, --dry-run           Do nothing. 
-    --output-dir=<dir>      Output directory [default: ./output]
-    --log-dir=<dir>         Logging directory [default: ./output/logs]
-"""
-
+from mritools import mritools 
 from docopt import docopt
 import os
 import os.path
@@ -18,6 +8,8 @@ import datetime
 import dicom
 import glob 
 import sys
+import UserDict
+
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
 
@@ -85,6 +77,23 @@ def pull_exams(arguments):
 
 
 if __name__ == "__main__":
-    arguments = docopt(__doc__)
+    defaults = UserDict.UserDict()
+    defaults['mrraw']   = os.environ.get("MRRAW_DIR"  ,"./output/mrraw")
+    defaults['raw']     = os.environ.get("RAW_DIR"    ,"./output/raw")
+    defaults['staging'] = os.environ.get("STAGING_DIR","./output/staging")
+    defaults['scans']   = os.environ.get("SCANS_DIR"  ,"./output/scans")
+    defaults['logs']    = os.environ.get("LOGS_DIR"   ,"./output/logs")
+    options = """ 
+Finds and copies exam data into a well-organized folder structure.
+
+Usage: 
+    mritool.py [options] [pull] [<examid>...]
+Options: 
+    -n, --dry-run           Do nothing. 
+    --output-dir=<dir>      Output directory [default: {defaults[staging]}]
+    --log-dir=<dir>         Logging directory [default: {defaults[logs]}]
+    --pfile-dir=<dir>       Pfile directory [default: {defaults[raw]}]
+""".format(defaults=defaults)
+    arguments = docopt(options)
     pull_exams(arguments)
 
