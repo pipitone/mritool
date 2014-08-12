@@ -1,5 +1,5 @@
 # vim: expandtab ts=4 sw=4 tw=80: 
-import mritools
+from mritools import mritools
 import unittest
 
 def test_get_pfile_info_nonexistant(): 
