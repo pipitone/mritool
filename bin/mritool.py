@@ -9,12 +9,21 @@ import dicom
 import glob 
 import sys
 import UserDict
+import re
 
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
+VERBOSE = False
+
+def warn(message): 
+    print "WARNING: {0}".format(message)
+
+def verbose_message(message):
+    if VERBOSE: print message
 
 def pull_exams(arguments): 
-    output_dir = arguments['--output-dir']
+    staging_dir= arguments['--staging-dir']
+    pfile_dir  = arguments['--pfile-dir'] 
     log_dir    = arguments['--log-dir'] 
     dry_run    = arguments['--dry-run']
     examids    = arguments['<examid>']
@@ -26,7 +35,7 @@ def pull_exams(arguments):
         if examids and examid not in examids:
             continue
         
-        studydir    = output_dir +"/" + studycode
+        studydir    = staging_dir +"/" + studycode
         examdirname = "{studycode}_E{examid}_{date}_{patient_id}_{patient_name}" \
                         .format(**vars())
         examdir     = "{studydir}/{examdirname}".format(**vars())
@@ -53,6 +62,62 @@ def pull_exams(arguments):
             os.system("listseries11 {0} | tee -a {1} > {2}/exam_info.txt".format(
                 examid, examinfo, examdir))
 
+        # merge in any pfiles from raw
+        pfiles = mritools.get_all_pfiles_info(pfile_dir)
+        for pfile in [p for p in pfiles.values() if str(p.headers['exam_number']) == examid]: 
+            if ".bak" in pfile.path: continue 
+
+            foldername = os.path.basename(os.path.dirname(pfile.path))
+            # Use the following Heuristic to decide what to do with the pfiles
+            #
+            # There are several kinds of runs represented by pfiles, and they
+            # can be identified and dealt with in the following ways.
+            #
+            # 1. Spectroscopy 
+            #   - The series_description contains "MRS" (MR Spectroscopy)
+            #   - There is a matching dicom series with a single dicom image in
+            #     it. 
+            #   - The dicom image contains the following identifying attributes: 
+            #         key = 0x0019109e, value == presssci
+            #         key = 0x001910a2, value == pfile ID (e.g. P<pfileid>.7)
+            #   - Action: Copy the single pfile to the series folder in staging
+            #
+            # 2. HOS
+            #   - The series_description is "HOS"
+            #   - Action: Ignore
+            #
+            # 3. fMRI 
+            #   - They are stored in a folder named fMRI_P<pfileid>
+            #   - Action: Copy the parent folder, and all it contains, to exam in staging
+            #
+            # 4. Raw spiral files
+            #   - They are stored in a folder named rawSprlioPfiles
+            #   - Action: Ignore
+            kind = pfile.guess_kind()
+
+            if kind == "spectroscopy":   
+                # find series directory should be named ".*S0*<series>"
+                n = pfile.headers["series_number"]
+                series_dir = [d for d in os.listdir(examdir) if 
+                    re.search(".*S0*{0}".format(n), d)]
+                if len(series_dir) != 1: 
+                    warn("Couldn't find folder for series {0} in exam dir {1} "
+                         "for pfile {2}. Skipping.".format(n,examdir,pfile.path))
+                    continue
+
+                series_dir = os.path.join(examdir,series_dir[0])
+                verbose_message("Move {0} to {1}".format(pfile.path, series_dir))
+            elif kind == "fmri":
+                parent_dir = os.path.dirname(pfile.path)
+                verbose_message("Move {0} to {1}".format(parent_dir, examdir)) 
+            elif kind == "hos" or kind == "raw": 
+                verbose_message(
+                    "Ignoring pfile {0} because it is type == {1}".format(
+                    pfile.path, kind))
+                continue 
+            else: 
+                warn("Unknown pfile kind {0}. Skipping.".format(pfile.path))
+                
         # get pfiles
         for series_dir in glob.glob(examdir + "/E*"): 
             for dcm_file in glob.glob(series_dir +"/*.dcm"): 
@@ -88,12 +153,15 @@ Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
     mritool.py [options] [pull] [<examid>...]
+
 Options: 
-    -n, --dry-run           Do nothing. 
-    --output-dir=<dir>      Output directory [default: {defaults[staging]}]
+    --staging-dir=<dir>     Staging directory [default: {defaults[staging]}]
     --log-dir=<dir>         Logging directory [default: {defaults[logs]}]
     --pfile-dir=<dir>       Pfile directory [default: {defaults[raw]}]
+    -n, --dry-run           Do nothing. 
+    -v, --verbose           Verbose messaging.
 """.format(defaults=defaults)
-    arguments = docopt(options)
-    pull_exams(arguments)
 
+    arguments = docopt(options)
+    VERBOSE = arguments['--dry-run'] or arguments['--verbose']
+    pull_exams(arguments)
