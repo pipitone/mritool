@@ -14,13 +14,35 @@ import re
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
 VERBOSE = False
+DRYRUN = False
 
 def warn(message): 
     print "WARNING: {0}".format(message)
 
 def verbose_message(message):
-    if VERBOSE: print message
+    if VERBOSE: log(message)
 
+def log(message): 
+    print "[{0}] {1}".format(datetime.datetime.now().isoformat(" "), message)
+
+def copy_to_dir(path_from, path_to): 
+    path_from = path_from.rstrip("/")
+    if not os.path.isdir(path_to):
+        raise Exception(
+        "Cannot move {0} to {1} because destination is not a directory".format(
+        path_from, path_to))
+
+    command = "rsync -a {0} {1}/".format(path_from, path_to)
+    verbose_message(command)
+
+    if DRYRUN: return
+
+    rtnval = os.system(command)
+    if rtnval: 
+        raise Exception("Error rsync'ing {0} to {1}/: return code {2}".format(
+        path_from, path_to, rtnval))
+
+        
 def pull_exams(arguments): 
     staging_dir= arguments['--staging-dir']
     pfile_dir  = arguments['--pfile-dir'] 
@@ -41,21 +63,20 @@ def pull_exams(arguments):
         examdir     = "{studydir}/{examdirname}".format(**vars())
         examinfo    = "{0}/{1}.info".format(studydir, examdirname)
         
-        print "Considering exam {0} from study {1}... ".format(
-            examid, studycode),
+        log("Considering exam {0} from study {1}...\n---".format(
+            examid, studycode))
 
         os.path.isdir(studydir) or os.makedirs(studydir) 
         os.path.isdir(log_dir) or os.makedirs(log_dir) 
      
-        print "checking.\n---" 
         
         # get dicoms
         if not os.path.isdir(examdir):  
-            print "Fetching DICOMS into {0}".format(examdir)
+            log("Fetching DICOMS into {0}".format(examdir))
             logfile = "{0}/{1}.getdicom.log".format(log_dir,examdirname)
             if os.system("getdicom -d {examdir} {examid} > {logfile}".format(
                 **vars())):
-                print "Error getting exam {0} DICOMS.".format(examid)
+                log("Error getting exam {0} DICOMS.".format(examid))
                 continue
             os.system("examinfo {0} | tee {1} > {2}/exam_info.txt".format(
                 examid, examinfo, examdir))
@@ -107,9 +128,11 @@ def pull_exams(arguments):
 
                 series_dir = os.path.join(examdir,series_dir[0])
                 verbose_message("Move {0} to {1}".format(pfile.path, series_dir))
+                copy_to_dir(pfile.path, examdir)
             elif kind == "fmri":
                 parent_dir = os.path.dirname(pfile.path)
                 verbose_message("Move {0} to {1}".format(parent_dir, examdir)) 
+                copy_to_dir(parent_dir, examdir)
             elif kind == "hos" or kind == "raw": 
                 verbose_message(
                     "Ignoring pfile {0} because it is type == {1}".format(
@@ -135,9 +158,7 @@ def pull_exams(arguments):
                 break
             
         
-        print "[{0}] Finished. ".format(datetime.datetime.now().isoformat(" "))
-        print "---\n"
-
+        log("Finished.\n---")
 
 
 
@@ -152,7 +173,7 @@ if __name__ == "__main__":
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool.py [options] [pull] [<examid>...]
+    mritool.py [options] pull [<examid>...]
 
 Options: 
     --staging-dir=<dir>     Staging directory [default: {defaults[staging]}]
@@ -163,5 +184,9 @@ Options:
 """.format(defaults=defaults)
 
     arguments = docopt(options)
+    DRYRUN = arguments['--dry-run']
     VERBOSE = arguments['--dry-run'] or arguments['--verbose']
-    pull_exams(arguments)
+    
+
+    if arguments['pull']:
+        pull_exams(arguments)
