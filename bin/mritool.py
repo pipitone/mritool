@@ -44,11 +44,7 @@ def copy_to_dir(path_from, path_to):
 
         
 def pull_exams(arguments): 
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
-    dry_run    = arguments['--dry-run']
-    examids    = arguments['<examid>']
+    examids    = arguments['<exam_number>']
 
     for line in os.popen("getallstudycodes"):     	
     
@@ -95,13 +91,13 @@ def pull_exams(arguments):
             # can be identified and dealt with in the following ways.
             #
             # 1. Spectroscopy 
-            #   - The series_description contains "MRS" (MR Spectroscopy)
             #   - There is a matching dicom series with a single dicom image in
             #     it. 
             #   - The dicom image contains the following identifying attributes: 
             #         key = 0x0019109e, value == presssci
             #         key = 0x001910a2, value == pfile ID (e.g. P<pfileid>.7)
             #   - Action: Copy the single pfile to the series folder in staging
+            #     and name the folder: E<examid>_spiral_<series_description>
             #
             # 2. HOS
             #   - The series_description is "HOS"
@@ -113,7 +109,7 @@ def pull_exams(arguments):
             #
             # 4. Raw spiral files
             #   - They are stored in a folder named rawSprlioPfiles
-            #   - Action: Ignore
+            #   - Action: Move to a raw spiral backup directory
             kind = pfile.guess_kind()
 
             if kind == "spectroscopy":   
@@ -161,6 +157,21 @@ def pull_exams(arguments):
         log("Finished.\n---")
 
 
+def package_exams(arguments): 
+    # look in staging for <studycode>/.*E<examid>_.* folders
+
+    for examid in arguments['<examid>']: 
+        examdir_candidates = glob.glob(
+            os.path.join(staging_dir,"*","*E{0}_*".format(examid)))
+        if len(examdir_candidates) == 0: 
+            warn("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
+                examid, staging_dir))
+            continue
+        if len(examdir_candidates) > 1: 
+            warn("Found mulitple folders for exam {0} in staging dir {1}." 
+                 "Skipping. {2}".format( examid, staging_dir, tuple(examdir_candidates)))
+            continue
+
 
 if __name__ == "__main__":
     defaults = UserDict.UserDict()
@@ -173,7 +184,8 @@ if __name__ == "__main__":
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool.py [options] pull [<examid>...]
+    mritool.py [options] pull [<exam_number>...]
+    mritool.py [options] package <exam_number>...
 
 Options: 
     --staging-dir=<dir>     Staging directory [default: {defaults[staging]}]
@@ -184,9 +196,15 @@ Options:
 """.format(defaults=defaults)
 
     arguments = docopt(options)
+    staging_dir= arguments['--staging-dir']
+    pfile_dir  = arguments['--pfile-dir'] 
+    log_dir    = arguments['--log-dir'] 
+
     DRYRUN = arguments['--dry-run']
     VERBOSE = arguments['--dry-run'] or arguments['--verbose']
     
 
     if arguments['pull']:
         pull_exams(arguments)
+    if arguments['package']:
+        package_exams(arguments)
