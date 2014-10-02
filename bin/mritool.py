@@ -3,6 +3,9 @@
 from mritools import mritools 
 from docopt import docopt
 import os
+import stat
+import pwd
+import grp
 import os.path
 import datetime 
 import dicom
@@ -10,11 +13,18 @@ import glob
 import sys
 import UserDict
 import re
+import traceback 
 
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
 VERBOSE = False
 DRYRUN = False
+
+def fatal(message, exception = None): 
+    print "FATAL: {0}".format(message)
+    if exception: 
+        print traceback.print_exc(exception)
+    sys.exit(1)
 
 def warn(message): 
     print "WARNING: {0}".format(message)
@@ -23,7 +33,12 @@ def verbose_message(message):
     if VERBOSE: log(message)
 
 def log(message): 
-    print "[{0}] {1}".format(datetime.datetime.now().isoformat(" "), message)
+    print "{0}".format(message)
+
+def run(command): 
+    verbose_message("EXEC: " + command)
+    if DRYRUN: return 
+    os.system(command)
 
 def copy_to_dir(path_from, path_to): 
     path_from = path_from.rstrip("/")
@@ -45,10 +60,22 @@ def copy_to_dir(path_from, path_to):
         
 def pull_exams(arguments): 
     examids    = arguments['<exam_number>']
+    scans_dir  = arguments['--scans-dir']
+    staging_dir= arguments['--staging-dir']
+    pfile_dir  = arguments['--pfile-dir'] 
+    log_dir    = arguments['--log-dir'] 
 
     for line in os.popen("getallstudycodes"):     	
     
         (examid, studycode, date, patient_id, patient_name) = line.strip('\n').split('\t')
+
+        # Study codes can appear with ammendment markers in their names
+        # indicating that the scan was somehow modified. This shows up as 'e+1'
+        # appended to the study code name, e.g. for an ammended scan with study
+        # code 'SPINS1MR', it appears in the dicom headers as 'e+1 SPINS1MR'. 
+        #
+        # For naming, we'll just ignore the ammendment markers entirely. 
+        studycode = studycode.split(" ")[-1] # ignore up to after last space
 
         if examids and examid not in examids:
             continue
@@ -67,16 +94,19 @@ def pull_exams(arguments):
      
         
         # get dicoms
-        if not os.path.isdir(examdir):  
+        if os.path.isdir(examdir):  
+            verbose_message(
+                "Exam {0} folder exists {1}. Skip fetching DICOMS.".format(examid, examdir)) 
+        else:
             log("Fetching DICOMS into {0}".format(examdir))
             logfile = "{0}/{1}.getdicom.log".format(log_dir,examdirname)
-            if os.system("getdicom -d {examdir} {examid} > {logfile}".format(
+            if run("getdicom -d '{examdir}' {examid} > {logfile}".format(
                 **vars())):
                 log("Error getting exam {0} DICOMS.".format(examid))
                 continue
-            os.system("examinfo {0} | tee {1} > {2}/exam_info.txt".format(
+            run("examinfo {0} | tee {1} > {2}/exam_info.txt".format(
                 examid, examinfo, examdir))
-            os.system("listseries11 {0} | tee -a {1} > {2}/exam_info.txt".format(
+            run("listseries11 {0} | tee -a {1} > {2}/exam_info.txt".format(
                 examid, examinfo, examdir))
 
         # merge in any pfiles from raw
@@ -123,11 +153,11 @@ def pull_exams(arguments):
                     continue
 
                 series_dir = os.path.join(examdir,series_dir[0])
-                verbose_message("Move {0} to {1}".format(pfile.path, series_dir))
+                verbose_message("Found pfile {0} to for series {1}".format(pfile.path, n))
                 copy_to_dir(pfile.path, examdir)
             elif kind == "fmri":
                 parent_dir = os.path.dirname(pfile.path)
-                verbose_message("Move {0} to {1}".format(parent_dir, examdir)) 
+                verbose_message("Found fMRI scan {0}".format(parent_dir)) 
                 copy_to_dir(parent_dir, examdir)
             elif kind == "hos" or kind == "raw": 
                 verbose_message(
@@ -150,19 +180,27 @@ def pull_exams(arguments):
                     break 
 
                 pfile_id = ds[DICOM_PFILEID_KEY].value
-                print "TODO: fetch pfile", pfile_id, "for series", series_dir
-                break
-            
-        
+
+                pfiles = glob.glob(series_dir + "/"+str(pfile_id)+".7")  
+                if len(pfiles) == 0: 
+                    warn(
+                        "Exam {0}/Series {1} needs a pfile (id: {2}) but none was found in {1}.".format(
+                            examid,series_dir,pfile_id))
         log("Finished.\n---")
 
 
 def package_exams(arguments): 
-    # look in staging for <studycode>/.*E<examid>_.* folders
+    scans_dir  = arguments['--scans-dir']
+    staging_dir= arguments['--staging-dir']
+    pfile_dir  = arguments['--pfile-dir'] 
+    log_dir    = arguments['--log-dir'] 
 
-    for examid in arguments['<examid>']: 
+    # look in staging for <studycode>/.*E<examid>_.* folders
+    for examid in arguments['<exam_number>']: 
         examdir_candidates = glob.glob(
             os.path.join(staging_dir,"*","*E{0}_*".format(examid)))
+
+        examdir_candidates = [x for x in examdir_candidates if os.path.isdir(x) ]
         if len(examdir_candidates) == 0: 
             warn("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
                 examid, staging_dir))
@@ -172,8 +210,42 @@ def package_exams(arguments):
                  "Skipping. {2}".format( examid, staging_dir, tuple(examdir_candidates)))
             continue
 
+        exam_path = examdir_candidates[0]
+        exam_name = os.path.basename(exam_path)
+        study_code = os.path.basename(os.path.dirname(exam_path))
 
-if __name__ == "__main__":
+        study_dir = "{0}/{1}".format(scans_dir,study_code)
+        pkg_path  = "{0}/{1}.tar.gz".format(study_dir,exam_name)
+        info_path = "{0}/{1}.info".format(study_dir,exam_name)
+        
+        if os.path.exists(pkg_path) and not arguments['--force']: 
+            warn("{0} package already exists. Skipping. Use --force to overwrite.".format(
+                pkg_path))
+        else: 
+            log("Packing exam {0} as {1}".format(examid, pkg_path))
+            if not os.path.exists(study_dir): 
+                fatal("Study folder {0} does not exist.".format(
+                    study_dir))
+                continue
+            run("tar czf {0} {1}*".format(pkg_path,exam_path))
+            run("cp {0}.info {1}".format(exam_path,info_path))
+
+        log("Setting permissions to be group ({0}) readable only.".format(study_code))
+        try: 
+            study_code_group_id = grp.getgrnam(study_code).gr_gid
+            print study_code_group_id
+            if not DRYRUN:
+                os.chown(pkg_path, -1, study_code_group_id)
+                os.chown(info_path, -1, study_code_group_id)
+                os.lchmod(pkg_path, 0640)
+                os.lchmod(info_path, 0640)
+        except (KeyError, OSError) as e:
+            fatal("Unable to set permissions ({0}) {1}".format(e.errno, e.strerror), e)
+            
+def main(): 
+    global DRYRUN 
+    global VERBOSE
+
     defaults = UserDict.UserDict()
     defaults['mrraw']   = os.environ.get("MRRAW_DIR"  ,"./output/mrraw")
     defaults['raw']     = os.environ.get("RAW_DIR"    ,"./output/raw")
@@ -188,23 +260,24 @@ Usage:
     mritool.py [options] package <exam_number>...
 
 Options: 
+    --scans-dir=<dir>       Staging directory [default: {defaults[scans]}]
     --staging-dir=<dir>     Staging directory [default: {defaults[staging]}]
     --log-dir=<dir>         Logging directory [default: {defaults[logs]}]
     --pfile-dir=<dir>       Pfile directory [default: {defaults[raw]}]
-    -n, --dry-run           Do nothing. 
+    -f, --force             Force, overwrite files if needed.
+    -n, --dry-run           Do nothing, but show what would be done. 
     -v, --verbose           Verbose messaging.
 """.format(defaults=defaults)
 
     arguments = docopt(options)
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
 
     DRYRUN = arguments['--dry-run']
-    VERBOSE = arguments['--dry-run'] or arguments['--verbose']
+    VERBOSE = arguments['--verbose']
     
-
     if arguments['pull']:
         pull_exams(arguments)
     if arguments['package']:
         package_exams(arguments)
+    
+if __name__ == "__main__":
+    main()
