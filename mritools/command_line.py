@@ -1,18 +1,14 @@
 #!/bin/env python
 # vim: expandtab ts=4 sw=4 tw=80: 
-from mritools import mritools 
+import pfiles
+import scu
 from docopt import docopt
-from mritools import scu
-from collections import defaultdict
 import shutil
 import tabulate
 import logging
 import os
-import stat
 import pwd
-import grp
 import os.path
-import datetime 
 import dicom
 import glob 
 import sys
@@ -20,6 +16,7 @@ import UserDict
 import re
 import traceback 
 import zipfile
+from collections import defaultdict
 
 VERBOSE = False
 DRYRUN = False
@@ -160,7 +157,7 @@ def find_pfiles(pfile_dir, examdir, examid):
 
     files = []  # (source, dest) list of found files
 
-    pfiles_headers = mritools.get_all_pfiles_headers(pfile_dir)
+    pfiles_headers = pfiles.get_all_pfiles_headers(pfile_dir)
     for pfile_path, pfile_headers in pfiles_headers.iteritems():
 
         # skip irrelvant pfiles
@@ -168,7 +165,7 @@ def find_pfiles(pfile_dir, examdir, examid):
         if ".bak" in pfile_path: continue 
 
         # Use a Heuristic to decide what to do with the pfiles found.
-        kind = mritools.guess_pfile_kind(pfile_path, pfile_headers)
+        kind = pfiles.guess_pfile_kind(pfile_path, pfile_headers)
 
         ###
         ## Spectroscopy PFiles
@@ -309,7 +306,7 @@ def check_exam_for_pfiles(dcm_info):
         if DICOM_PRESSCI_KEY not in ds or \
             ds[DICOM_PRESSCI_KEY].value != "presscsi": continue
 
-        pfiles_headers = mritools.get_all_pfiles_headers(series_dir)
+        pfiles_headers = pfiles.get_all_pfiles_headers(series_dir)
         pfile_id = ds[DICOM_PFILEID_KEY].value
 
         if len(pfiles_headers) == 0: 
@@ -576,12 +573,12 @@ def main():
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool.py [options] pull [<exam_number>...]
-    mritool.py [options] zip <exam_number>...
-    mritool.py [options] list [tail] [<exam_number>...]
-    mritool.py [options] staged
-    mritool.py [options] zipped 
-    mritool.py [options] rm <exam_number>...
+    mritool [options] pull [<exam_number>...]
+    mritool [options] zip <exam_number>...
+    mritool [options] list [tail] [<exam_number>...]
+    mritool [options] staged
+    mritool [options] zipped 
+    mritool [options] rm <exam_number>...
 
 Commands: 
     pull                       Get an exam from the scanner
