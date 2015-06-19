@@ -73,16 +73,16 @@ def format_exam_name(examinfo):
     # Booking codes can appear with ammendment markers 'e+1' in their names
     # indicating that the scan was somehow modified.
     ammendment = "" 
-    bookingcode  = examinfo["StudyDescription"]    # by default this is the booking code
+    bookingcode  = examinfo.get("StudyDescription","")    # by default this is the booking code
     if bookingcode.split(" ")[0].startswith("e+"):  
         ammendment   = bookingcode.split(" ")[0]
         bookingcode  = " ".join(bookingcode.split(" ")[1:])
        
     return "{date}_Ex{examid}_{bookingcode}_{patientid}{ammendment}".format(
-              date        = examinfo["StudyDate"],
-              examid      = examinfo["StudyID"],
+              date        = examinfo.get("StudyDate"),
+              examid      = examinfo.get("StudyID"),
               bookingcode = mangle(bookingcode),
-              patientid   = mangle(examinfo["PatientID"]), 
+              patientid   = mangle(examinfo.get("PatientID","")), 
               ammendment  = re.sub(r'\W','', ammendment))
 
 def format_series_name(examid, series, seriesdescr):
@@ -114,31 +114,36 @@ def listdir_fullpath(d):
     """
     return [os.path.join(d, f) for f in os.listdir(d)]
 
-def index_dicoms(path, recurse = True, maxdepth = -1): 
-   """
-   Generate a dictionary of subfolders and dicom headers.
-   """
+def index_dicoms(path, recurse = True, maxdepth = -1, complete = False): 
+    """
+    Generate a dictionary of files and their dicom headers.
 
-   manifest = {}
+    <path>      a path to the root folder
+    <recurse>   a boolean, if true then will search subfolders recursively
+    <maxdepth>  integer, depth to recurse to. -1 = no max depth
+    <complete>  boolean, if false only a single dicom file per folder is indexed
+    """
 
-   # for each dir, we want to inspect files inside of it until we find a dicom
-   # file that has header information
-   subdirs = []
-   for filename in os.listdir(path):
-       filepath = os.path.join(path,filename)
-       try:
-           if os.path.isdir(filepath):
-               subdirs.append(filepath)
-               continue
-           manifest[path] = dicom.read_file(filepath)
-           break
-       except dicom.filereader.InvalidDicomError, e:
-           pass
+    manifest = {}
 
-   if recurse and (maxdepth < 0 or maxdepth > 0): 
-       for subdir in subdirs:
-           manifest.update(index_dicoms(subdir, recurse = recurse, maxdepth = maxdepth - 1))
-   return manifest
+    # for each dir, we want to inspect files inside of it until we find a dicom
+    # file that has header information
+    for filepath in listdir_fullpath(path):
+        try:
+            if os.path.isdir(filepath): continue
+            manifest[filepath] = dicom.read_file(filepath)
+            if not complete: break
+        except dicom.filereader.InvalidDicomError, e:
+            pass
+
+    if recurse and (maxdepth < 0 or maxdepth > 0): 
+        for subdir in listdir_fullpath(path):
+            if not os.path.isdir(filepath): continue
+            manifest.update(index_dicoms(subdir, 
+                recurse = recurse, 
+                maxdepth = maxdepth - 1, 
+                complete = complete))
+    return manifest
 
 def index_exams(paths):
     """ 
@@ -298,7 +303,8 @@ def check_exam_for_pfiles(dcm_info):
     """
     Check that referenced pfiles exist in proper folders in an exam.
 
-    Expects a dictionary mapping dicom folder paths to pydicom headers. 
+    Expects a dictionary mapping a single dicom per series folder to pydicom
+    headers. 
     Returns two lists: 
 
         - directories missing pfiles: [ (dir, pfileid)...]
@@ -309,7 +315,9 @@ def check_exam_for_pfiles(dcm_info):
     nonmatching_pfiles = [] 
 
     series_checked = []
-    for series_dir, ds in dcm_info.iteritems():
+    for dicompath, ds in dcm_info.iteritems():
+        series_dir = os.path.dirname(dicompath)
+
         if series_dir  in series_checked: continue
         series_checked.append(series_dir)
 
@@ -351,13 +359,8 @@ def pull_exams(arguments):
     staging_dir= arguments['--staging-dir']
     pfile_dir  = arguments['--pfile-dir'] 
     log_dir    = arguments['--log-dir'] 
-    host       = arguments['--host']
-    port       = arguments['--port']
-    aet        = arguments['--aet']
-    aec        = arguments['--aec']
-    rport = port    # return port is the same (for now)
+    connection = _get_scanner_connection(arguments)
 
-    connection = scu.SCU(host, port, rport, aet, aec) 
     exams = connection.find(scu.StudyQuery())
 
     if examids:
@@ -428,6 +431,7 @@ def package_exams(arguments):
     staging_dir= arguments['--staging-dir']
     pfile_dir  = arguments['--pfile-dir'] 
     log_dir    = arguments['--log-dir'] 
+    connection = _get_scanner_connection(arguments)
 
     if not os.path.exists(scans_dir): 
         fatal("Scans folder (--scans-dir) {0} does not exist.".format(study_dir))
@@ -442,30 +446,34 @@ def package_exams(arguments):
             fatal("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
                 examid, staging_dir))
             continue
-        exam_path = staged_by_id[examid]
-        exam_name = os.path.basename(exam_path)
+        examdir = staged_by_id[examid]
+        exam_name = os.path.basename(examdir)
         pkg_path  = "{0}/{1}.zip".format(scans_dir,exam_name)
+
+        warnings = _check_staged(examid, examdir, connection)
         
-        if os.path.exists(pkg_path) and not arguments['--force']: 
-            warn("{0} package already exists. Skipping. Use --force to overwrite.".format(
-                pkg_path))
+        if os.path.exists(pkg_path):
+            warnings.append(
+                "{0} zip already exists. Skipping.".format(pkg_path))
+
+        for warning in warnings: warn(warning)
+
+        if warnings and not arguments['--force']: 
+            warn("Not packaging exam {} because of warnings. Use --force to do it anyway".format(
+                examid))
             continue
+
 
         log("Packing exam {0} as {1}".format(examid, pkg_path))
         ziph = zipfile.ZipFile(pkg_path,'w')
-        zipdir(exam_path,ziph)
+        zipdir(examdir,ziph)
         ziph.close()
             
 def list_exams(arguments): 
-    host = arguments['--host']
-    port = arguments['--port']
-    aet  = arguments['--aet']
-    aec  = arguments['--aec']
     examids    = arguments['<exam_number>']
-    rport = port    # return port is the same (for now)
+    connection = _get_scanner_connection(arguments)
+    records    = connection.find(scu.StudyQuery())
 
-    connection = scu.SCU(host, port, rport, aet, aec) 
-    records = connection.find(scu.StudyQuery())
     if examids:
         records = filter(lambda x: x["StudyID"] in examids, records)
     headers = "StudyID", "StudyDate", "PatientID", "StudyDescription", "PatientName",
@@ -547,16 +555,130 @@ def remove_staged(arguments):
             warn("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
                 examid, staging_dir))
             continue
-        exam_path = staged_by_id[examid]
-        exam_name = os.path.basename(exam_path)
+        examdir = staged_by_id[examid]
+        exam_name = os.path.basename(examdir)
         pkg_path  = "{0}/{1}.zip".format(scans_dir,exam_name)
         
         if not os.path.exists(pkg_path) and not arguments['--force']: 
             warn("Zip for exam {} doesn't exists. Skipping. Use --force to remove anyway.".format(
                 examid))
             continue
-        shutil.rmtree(exam_path) 
+        shutil.rmtree(examdir) 
 
+def check_series_dicoms(examdir, examid, seriesinfo):
+    """
+    Checks that all series are present with correct dicom files. 
+
+    <seriesinfo> is a list of dictionaries for each expected series. The
+    dictionary for a series contains Dicom attributes: StudyID, SeriesNumber,
+    SeriesDescription, ImagesInAcquistion.
+
+    Returns an empty list if all checks pass, and a list of user warnings
+    otherwise. 
+    """
+
+    warnings = [] 
+
+    for info in seriesinfo: 
+        series      = info.get("SeriesNumber","")
+        seriesdescr = info.get("SeriesDescription","")
+        numimages   = int(info.get("ImagesInAcquisition",0))
+        seriesname  = format_series_name(examid, series, seriesdescr)
+        seriesdir   = os.path.join(examdir, seriesname)
+
+        # Confirm series folder exists, if it doesn't: warn
+        if not os.path.exists(seriesdir):
+            warn("Exam {}: expected series folder {} does not exist.".format(
+                examid, seriesdir))
+            continue
+
+        # Confirm series folder has dicom data in it that matches the series
+        dicoms = index_dicoms(seriesdir, recurse = False, complete = True) 
+
+        if len(dicoms) != numimages:
+            warnings.append("Series {} has {} dicoms, expected {}.".format(
+                seriesdir, len(dicoms), numimages))
+            continue
+         
+        for path, ds in dicoms.iteritems(): 
+            if ds.get("StudyID") != examid: 
+                warnings.append(
+                    "Dicom: {} doesn't have matching StudyID".format(path))
+    return warnings
+
+def check_staged(arguments):
+    """
+    Check that a staged exam is complete. 
+
+    This checks for the following things: 
+        - Each series is present (if possible)
+        - Each series has the expected number of dicom files
+        - All pfile data is present
+        - All physio data is present
+    """
+    scans_dir  = arguments['--scans-dir']
+    staging_dir= arguments['--staging-dir']
+    pfile_dir  = arguments['--pfile-dir'] 
+    log_dir    = arguments['--log-dir'] 
+    connection = _get_scanner_connection(arguments)
+
+    staged_exams = index_exams(listdir_fullpath(staging_dir))
+    staged_by_id = { ds.get("StudyID") : path for path, ds in staged_exams.iteritems() } 
+
+    for examid in arguments['<exam_number>']: 
+        if examid not in staged_by_id: 
+            warn("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
+                examid, staging_dir))
+            continue
+
+        examinfo = staged_exams[staged_by_id[examid]]
+        examname = format_exam_name(examinfo)
+        examdir  = os.path.join(staging_dir, examname)
+        warnings = _check_staged(examid, examdir, connection)
+
+        for warning in warnings: warn(warning)
+
+def _get_scanner_connection(arguments): 
+    host       = arguments['--host']
+    port       = arguments['--port']
+    aet        = arguments['--aet']
+    aec        = arguments['--aec']
+    rport      = port    # return port is the same (for now)
+    return scu.SCU(host, port, rport, aet, aec) 
+
+def _check_staged(examid, examdir, connection):
+    """
+    Internal method for doing all checks on a staged exam. See check_staged
+
+    Returns [] if successful, and a list of user warnings otherwise
+    """
+    warnings = []
+
+    ####
+    # Check that each series is present and has expected # of dicoms
+    seriesinfo = connection.find(scu.SeriesQuery(StudyID = examid))
+    if not seriesinfo: 
+        warnings.append(
+            "Exam {} not on scanner. Unable to check series count.".format(
+                examid))
+
+    warnings.extend(check_series_dicoms(examdir, examid, seriesinfo))
+
+    ####
+    # Check that all pfile data is present
+    dicom_info = index_dicoms(examdir)
+    missing_pfiles, nonmatching_pfiles = check_exam_for_pfiles(dicom_info) 
+    for series_dir, pfile_id in missing_pfiles:
+        warnings.append(
+            "Expected pfile (id: {}) in {} but none were found.".format(
+                pfile_id, series_dir))
+    for pfile_path, dcm_headers in nonmatching_pfiles:
+        warnings.append(
+            "Pfile {} headers do not match exam/series number.".format(
+                pfile_path))
+    
+    return warnings
+    
 def main(): 
     global DRYRUN 
     global VERBOSE
@@ -578,16 +700,18 @@ Usage:
     mritool [options] pull [<exam_number>...]
     mritool [options] zip <exam_number>...
     mritool [options] list [tail] [<exam_number>...]
-    mritool [options] staged
-    mritool [options] zipped 
+    mritool [options] list-staged
+    mritool [options] list-zipped 
+    mritool [options] check <exam_number>...
     mritool [options] rm <exam_number>...
 
 Commands: 
     pull                       Get an exam from the scanner
     zip                        Zip up exam
-    list                       List all exams
-    staged                     Show the exams in the staging area
-    zipped                     Show zipped exams
+    list                       List all exams on the scanner
+    list-staged                List the exams in the staging area
+    list-zipped                List the exams that have been zipped
+    check                      Check that a staged exam has all of its files
     rm                         Remove exam data from the staging area
 
 Options: 
@@ -612,16 +736,18 @@ Options:
 
     if arguments['list']:
         list_exams(arguments)
+    if arguments['list-staged']:
+        show_staged(arguments)
+    if arguments['list-zipped']:
+        show_zipped(arguments)
     if arguments['pull']:
         pull_exams(arguments)
     if arguments['zip']:
         package_exams(arguments)
-    if arguments['staged']:
-        show_staged(arguments)
-    if arguments['zipped']:
-        show_zipped(arguments)
     if arguments['rm']:
         remove_staged(arguments)
+    if arguments['check']:
+        check_staged(arguments)
     
 if __name__ == "__main__":
     main()
