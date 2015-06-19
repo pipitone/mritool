@@ -69,11 +69,21 @@ def format_exam_name(examinfo):
 
     Expects a dictionary of info about the exam as would be returned by findscu. 
     """ 
-    return "{date}_Ex{examid}_{studydescr}_{patientid}".format(
-              date       = examinfo["StudyDate"],
-              examid     = examinfo["StudyID"],
-              studydescr = mangle(examinfo["StudyDescription"]),
-              patientid  = mangle(examinfo["PatientID"]))
+
+    # Booking codes can appear with ammendment markers 'e+1' in their names
+    # indicating that the scan was somehow modified.
+    ammendment = "" 
+    bookingcode  = examinfo["StudyDescription"]    # by default this is the booking code
+    if bookingcode.split(" ")[0].startswith("e+"):  
+        ammendment   = bookingcode.split(" ")[0]
+        bookingcode  = " ".join(bookingcode.split(" ")[1:])
+       
+    return "{date}_Ex{examid}_{bookingcode}_{patientid}{ammendment}".format(
+              date        = examinfo["StudyDate"],
+              examid      = examinfo["StudyID"],
+              bookingcode = mangle(bookingcode),
+              patientid   = mangle(examinfo["PatientID"]), 
+              ammendment  = re.sub(r'\W','', ammendment))
 
 def format_series_name(examid, series, seriesdescr):
     """
@@ -361,14 +371,6 @@ def pull_exams(arguments):
         ###
         ## Set up   
         ### 
-        # Booking codes can appear with ammendment markers 'e+1' in their names
-        # indicating that the scan was somehow modified.
-        ammendment = "" 
-        bookingcode  = studydescr    # by default this is the booking code
-        if studydescr.split(" ")[0].startswith("e+"):  
-            ammendment = studydescr.split(" ")[0]
-            bookingcode  = "-".join(studydescr.split(" ")[1:])
-       
         examdirname = format_exam_name(exam) 
         examdir  = os.path.join(staging_dir,examdirname)
         
