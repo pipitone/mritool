@@ -12,7 +12,7 @@ Installation
 
 I recommend using a conda environment to get set up::
 
-	$ conda create -n mritool python
+    $ conda create -n mritool python
     $ source activate mritool 
 
 Then clone this repo and setup::
@@ -40,9 +40,9 @@ The GE scanner serves most data via a DICOM server which is accessible using
 the gcmtk toolkit. A few kinds of data are not accessible over DICOM transfer,
 and those are: 
 
- - spectroscopy scans (pfiles)
- - spiral scans (pfiles) 
- - fMRI reconstruction
+- spectroscopy scans (pfiles)
+- spiral scans (pfiles) 
+- fMRI reconstruction
 
 These data must be retrieved separately from the scanner file system.
 
@@ -59,16 +59,15 @@ overwritten.
 Therefore, the following system has been devised: 
 
 1. After a scan producing pfiles is complete, or before the end of the day, an
-MR tech will need to move the pfiles from the day into a safe storage location
-(/data/mrraw).  This is currently done using the `getmrraw` script, which:
+   MR tech will need to move the pfiles from the day into a safe storage location
+   (/data/mrraw).  This is currently done using the `getmrraw` script, which:
 
-  - creates a date stamped directory in /data/mrraw
-  - finds *all* .7 and .physio files in the scanner's `mrraw` folder, and moves
-    them to the this directory
+   - creates a date stamped directory in /data/mrraw
+   - finds *all* .7 and .physio files in the scanner's `mrraw` folder, and moves
+     them to the this directory
 
 2. When the mritool is used to `pull` an exam, the `/data/mrraw` folder is
-scanned for matching pfiles, and those are copied into the staging area. 
-
+   scanned for matching pfiles, and those are copied into the staging area. 
 
 DICOM Tools
 ~~~~~~~~~~~
@@ -88,13 +87,13 @@ Sunnybrook dcmtk-based tools:
 e.g.::
 
     $ listexams11 | less                # pipe to less so you page through the results 
-   
+     
     $ listexams11 | grep ' 1550 '       # match the study ID, 1550
     67:   1550 |          | AP1334                     | MOAP025    ...
-   
+     
     $ listseries11 1550                 
     exam_uid:     1.2.840.113619.6.336.224574220444805981076681681360727924721
-   
+     
                    series #       description               images 
        series   1:   10                         3Plane Loc  (30 images)
        series   2: 20019                        Screen Save  (3 images)
@@ -110,16 +109,16 @@ e.g.::
        series  12:   17                  ASSET Calibration  (38 images)
        series  13: 1601                                Cor  (182 images)
        series  14:   18                    MRS - sgACC B/L  (1 image)
-   
+    
     $ getdicom 1550
-   
+    
     $ getallseries11 -hier 1.2.840.113619.6.336.224574220444805981076681681360727924721
     #
     # use '-hier' option so that files get created in a hierarchy of folders
     # corresponding to the series IDs.  If you don't use this option, all of the
     # dicoms get spewed out into your current folder.
+     
     
-   
     $ bin/getseries11 1.2.840.113619.6.336.224574220444805981076681681360727924721 1
     #
     # This gets series #1 from the given exam. 
