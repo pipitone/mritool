@@ -66,10 +66,10 @@ Therefore, the following system has been devised:
    - finds *all* .7 and .physio files in the scanner's `mrraw` folder, and moves
      them to the this directory
 
-2. tech then runs the sort script 'sortfMRI5', which sorts Pfiles into "raw" spiral Pfiles, HOS Pfiles,
+2. Tech then runs the sort script 'sortfMRI5', which sorts Pfiles into "raw" spiral Pfiles, HOS Pfiles,
    and spectroscopy Pfiles. This sorting script also creates directories for fMRI files - and runs AFNI script
-    to create the *.nii file. Original Pfiles are moved to a separate directory 'rawSprlioPfiles' for 
-    short-term storage.
+   to create the *.nii file. Original Pfiles are moved to a separate directory 'rawSprlioPfiles' for 
+   short-term storage.
 
 3. When the mritool is used to `pull` an exam, the `/data/mrraw` folder is
    scanned for matching pfiles, and those are copied into the staging area. 
