@@ -333,7 +333,6 @@ def check_exam_for_pfiles(dcm_info):
             missing_pfiles.append( (series_dir, pfile_id) )
 
         for pfile_path, pfile_headers in pfiles_headers.iteritems():
-            print pfile_path 
             if str(pfile_headers["exam_number"]) != str(ds.get("StudyID")) or \
                str(pfile_headers["series_number"]) != str(ds.get("SeriesNumber")):
                 nonmatching_pfiles.append( (pfile_path, ds) )
@@ -358,26 +357,23 @@ def zipdir(path, ziph):
 
 def pull_exams(arguments): 
     examids    = arguments['<exam_number>']
-    scans_dir  = arguments['--scans-dir']
     staging_dir= arguments['--staging-dir']
     pfile_dir  = arguments['--pfile-dir'] 
     log_dir    = arguments['--log-dir'] 
     connection = _get_scanner_connection(arguments)
 
-    exams = connection.find(scu.StudyQuery())
-
-    if examids:
-        exams = filter(lambda x: x["StudyID"] in examids, exams)
-    
-    for exam in exams: 
-        exam       = defaultdict(str,exam)    # in case there are empty fields
-        examid     = exam["StudyID"]
-        studydescr = exam["StudyDescription"]
+    for examid in examids:
+        examinfo   = connection.find(scu.StudyQuery(StudyID = examid))
+        if not examinfo: 
+            warn("Exam {} not found on the scanner. Skipping.".format(examid))
+            continue
+        examinfo = examinfo[0]
+        studydescr = examinfo.get("StudyDescription","")
 
         ###
         ## Set up   
         ### 
-        examdirname = format_exam_name(exam) 
+        examdirname = format_exam_name(examinfo) 
         examdir  = os.path.join(staging_dir,examdirname)
         
         log("Considering exam {}, description: '{}' ...".format(examid, studydescr))
@@ -465,7 +461,6 @@ def _fetch_nondicom_exam_data(examdir, examid, pfile_dir):
         warn("Pfile {} headers do not match exam/series number.".format(
             pfile_path))
         
-
 def package_exams(arguments): 
     scans_dir  = arguments['--scans-dir']
     staging_dir= arguments['--staging-dir']
@@ -748,10 +743,9 @@ def main():
     global VERBOSE
 
     defaults = UserDict.UserDict()
-    defaults['mrraw']   = os.environ.get("MRITOOL_MRRAW_DIR"  ,"./output/mrraw")
-    defaults['raw']     = os.environ.get("MRITOOL_RAW_DIR"    ,"./output/raw")
+    defaults['raw']     = os.environ.get("MRITOOL_RAW_DIR"    ,"/mnt/mrraw/camh")
     defaults['staging'] = os.environ.get("MRITOOL_STAGING_DIR","./output/staging")
-    defaults['scans']   = os.environ.get("MRITOOL_SCANS_DIR"  ,"./output/scans")
+    defaults['scans']   = os.environ.get("MRITOOL_SCANS_DIR"  ,"./output/processed")
     defaults['logs']    = os.environ.get("MRITOOL_LOGS_DIR"   ,"./output/logs")
     defaults['host']    = os.environ.get("MRITOOL_HOST"       ,"CAMHMR")
     defaults['port']    = os.environ.get("MRITOOL_PORT"       ,"4006")
@@ -761,7 +755,7 @@ def main():
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool [options] pull-exam <exam_number>
+    mritool [options] pull-exams <exam_number>... 
     mritool [options] pull-series <exam_number> <series_number> [<outputdir>]
     mritool [options] list-exams [<number>] 
     mritool [options] list-series <exam_number>
@@ -772,7 +766,7 @@ Usage:
     mritool [options] rm <exam_number>...
 
 Commands: 
-    pull-exam                  Get an exam from the scanner
+    pull-exams                 Get an exam from the scanner
     pull-series                Get a single series from the scanner
     list-exams                 List all exams on the scanner
     list-series                List all series for the exam on the scanner
@@ -801,6 +795,9 @@ Options:
 
     DRYRUN = arguments['--dry-run']
     VERBOSE = arguments['--verbose']
+    
+    print arguments
+    return 
 
     if arguments['list-exams']:
         list_exams(arguments)
@@ -810,7 +807,7 @@ Options:
         show_zipped(arguments)
     if arguments['list-series']:
         list_series(arguments)
-    if arguments['pull-exam']:
+    if arguments['pull-exams']:
         pull_exams(arguments)
     if arguments['pull-series']:
         pull_series(arguments)
