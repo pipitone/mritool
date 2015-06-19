@@ -509,18 +509,30 @@ def package_exams(arguments):
         ziph.close()
             
 def list_exams(arguments): 
-    examids    = arguments['<exam_number>']
+    scans_dir  = arguments['--scans-dir']
+    staging_dir= arguments['--staging-dir']
     connection = _get_scanner_connection(arguments)
     records    = connection.find(scu.StudyQuery())
 
-    if examids:
-        records = filter(lambda x: x["StudyID"] in examids, records)
-    headers = "StudyID", "StudyDate", "PatientID", "StudyDescription", "PatientName",
+    headers = [ "StudyID", "StudyDate", "PatientID", "StudyDescription", "PatientName"] 
     table = [ [ r.get(key,"") for key in headers ] for r in records ]
     table = sorted(table, key=lambda row: int(row[0]))
 
-    if arguments["tail"]:
-        table = table[-10:]
+    if arguments["<number>"]:
+        table = table[-int(arguments["<number>"]):]
+
+    # check if zipped or staged
+    headers = headers + ["Staged", "Zipped"]
+    for row in table: 
+        studyid = row[0]
+        staged = "no"
+        zipped = "no"
+        if len(glob.glob(os.path.join(staging_dir,"*_Ex"+studyid+"_*"))) > 0: 
+            staged = "yes"
+        if len(glob.glob(os.path.join(scans_dir,"*_Ex"+studyid+"_*"))) > 0: 
+            zipped = "yes"
+        row.extend( [ staged, zipped] ) 
+
     print
     print tabulate.tabulate(table, headers=headers )
     print
@@ -752,24 +764,24 @@ def main():
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool [options] pull [<exam_number>...]
+    mritool [options] pull-exam <exam_number>
     mritool [options] pull-series <exam_number> <series_number> [<outputdir>]
-    mritool [options] list [tail] [<exam_number>...]
+    mritool [options] list-exams [<number>] 
     mritool [options] list-series <exam_number>
     mritool [options] list-staged
     mritool [options] list-zipped 
-    mritool [options] check <exam_number>...
+    mritool [options] check-staged <exam_number>...
     mritool [options] zip <exam_number>...
     mritool [options] rm <exam_number>...
 
 Commands: 
-    pull                       Get an exam from the scanner
+    pull-exam                  Get an exam from the scanner
     pull-series                Get a single series from the scanner
-    list                       List all exams on the scanner
+    list-exams                 List all exams on the scanner
     list-series                List all series for the exam on the scanner
     list-staged                List the exams in the staging area
     list-zipped                List the exams that have been zipped
-    check                      Check that a staged exam has all of its files
+    check-staged               Check that a staged exam has all of its files
     rm                         Remove exam data from the staging area
     zip                        Zip up exam
 
@@ -793,7 +805,7 @@ Options:
     DRYRUN = arguments['--dry-run']
     VERBOSE = arguments['--verbose']
 
-    if arguments['list']:
+    if arguments['list-exams']:
         list_exams(arguments)
     if arguments['list-staged']:
         show_staged(arguments)
@@ -801,7 +813,7 @@ Options:
         show_zipped(arguments)
     if arguments['list-series']:
         list_series(arguments)
-    if arguments['pull']:
+    if arguments['pull-exam']:
         pull_exams(arguments)
     if arguments['pull-series']:
         pull_series(arguments)
@@ -809,7 +821,7 @@ Options:
         package_exams(arguments)
     if arguments['rm']:
         remove_staged(arguments)
-    if arguments['check']:
+    if arguments['check-staged']:
         check_staged(arguments)
     
 if __name__ == "__main__":
