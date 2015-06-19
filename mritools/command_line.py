@@ -652,17 +652,13 @@ def check_series_dicoms(examdir, examid, seriesinfo):
             continue
 
         # Confirm series folder has dicom data in it that matches the series
-        dicoms = index_dicoms(seriesdir, recurse = False, complete = True) 
+        dicoms = glob.glob(seriesdir+"/*.dcm")
 
         if len(dicoms) != numimages:
             warnings.append("Series {} has {} dicoms, expected {}.".format(
                 seriesdir, len(dicoms), numimages))
             continue
-         
-        for path, ds in dicoms.iteritems(): 
-            if ds.get("StudyID") != examid: 
-                warnings.append(
-                    "Dicom: {} doesn't have matching StudyID".format(path))
+
     return warnings
 
 def check_staged(arguments):
@@ -796,9 +792,6 @@ Options:
     DRYRUN = arguments['--dry-run']
     VERBOSE = arguments['--verbose']
     
-    print arguments
-    return 
-
     if arguments['list-exams']:
         list_exams(arguments)
     if arguments['list-staged']:
