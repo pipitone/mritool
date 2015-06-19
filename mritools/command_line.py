@@ -266,10 +266,12 @@ def sort_exam(examdir):
     dcm_dict = {}  # seq -> [ (path, dcminfo)... ] 
     for dcm_file in glob.glob(os.path.join(examdir,"*")):
         try: 
+            if os.path.isdir(dcm_file): continue 
             ds = dicom.read_file(dcm_file)
         except dicom.filereader.InvalidDicomError, e: 
             verbose("File {} is not a dicom. Skipping.".format(dcm_file))  
             continue  # just skip non-dicom files 
+
         if "SeriesNumber" not in ds:
             verbose("Dicom {} does not have a SeriesNumber. Skipping.".format(dcm_file))  
             continue  # skip 
@@ -390,40 +392,77 @@ def pull_exams(arguments):
             if not DRYRUN: connection.move(scu.StudyQuery(StudyID = examid), examdir)
 
             # move dicom files into folders
-            moveops = sort_exam(examdir)
-            for source, dest in moveops: 
-                verbose("Moving {} to {}".format(source, dest))
-                if not os.path.exists(os.path.dirname(dest)): 
-                    os.makedirs(os.path.dirname(dest))
-                if not DRYRUN: shutil.move(source,dest)
+            _sort_exam(examdir)
 
-        ###
-        ## Copy pFiles and related pfile assets
-        ###
-        verbose("Searching for pfiles matching this exam...")
-        copyops = find_pfiles(pfile_dir, examdir, examid)
-        for source, dest in copyops: 
-            verbose("Copying {} to {}".format(source, dest))
-            directory = os.path.dirname(dest)
-            if not os.path.exists(directory): 
-                os.makedirs(directory)
-            if not DRYRUN: shutil.copy(source, dest)
+        # fetch all non-dicom data for the exam
+        _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
 
-        ###
-        ## Check dicom headers for related pfiles
-        ##
-        ## A dicom series with an asssociated pfile has the DICOM_PRESSCI_KEY
-        ## header set to "presssci".  
-        ###
-        verbose("Checking whether all pfiles have been found...")
-        dicom_info = index_dicoms(examdir)
-        missing_pfiles, nonmatching_pfiles = check_exam_for_pfiles(dicom_info) 
-        for series_dir, pfile_id in missing_pfiles:
-            warn("Expected pfile (id: {}) in {} but none were found.".format(
-                pfile_id, series_dir))
-        for pfile_path, dcm_headers in nonmatching_pfiles:
-            warn("Pfile {} headers do not match exam/series number.".format(
-                pfile_path))
+def pull_series(arguments): 
+    examid     = arguments['<exam_number>'][0]
+    seriesno   = arguments['<series_number>']
+    outputdir  = arguments['<outputdir>'] or '.'
+    pfile_dir  = arguments['--pfile-dir'] 
+    connection = _get_scanner_connection(arguments)
+
+    exams = connection.find(scu.StudyQuery(StudyID = examid))
+    if not exams: 
+        warn("Can't find exam {}".format(examid))
+        return
+    examinfo = exams[0]
+
+    seriesq = scu.SeriesQuery(StudyID = examid, SeriesNumber = seriesno)
+    series = connection.find(seriesq)
+
+    if not series: 
+        warn("Can't find series {} in exam {}".format(examid, seriesno))
+        return
+
+    examname = format_exam_name(examinfo)
+    examdir  = os.path.join(outputdir, examname)
+    if not os.path.exists(examdir): os.makedirs(examdir)
+    connection.move(seriesq, examdir)
+    _sort_exam(examdir)
+    _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
+
+def _sort_exam(examdir): 
+    """ Internal function rename dicoms into series folders. """
+    # move dicom files into folders
+    moveops = sort_exam(examdir)
+    for source, dest in moveops: 
+        verbose("Moving {} to {}".format(source, dest))
+        if not os.path.exists(os.path.dirname(dest)): 
+            os.makedirs(os.path.dirname(dest))
+        if not DRYRUN: shutil.move(source,dest)
+
+def _fetch_nondicom_exam_data(examdir, examid, pfile_dir): 
+    """ Find perhipheral data """
+    ###
+    ## Copy pFiles and related pfile assets
+    ###
+    verbose("Searching for pfiles matching this exam...")
+    copyops = find_pfiles(pfile_dir, examdir, examid)
+    for source, dest in copyops: 
+        verbose("Copying {} to {}".format(source, dest))
+        directory = os.path.dirname(dest)
+        if not os.path.exists(directory): 
+            os.makedirs(directory)
+        if not DRYRUN: shutil.copy(source, dest)
+
+    ###
+    ## Check dicom headers for related pfiles
+    ##
+    ## A dicom series with an asssociated pfile has the DICOM_PRESSCI_KEY
+    ## header set to "presssci".  
+    ###
+    verbose("Checking whether all pfiles have been found...")
+    dicom_info = index_dicoms(examdir)
+    missing_pfiles, nonmatching_pfiles = check_exam_for_pfiles(dicom_info) 
+    for series_dir, pfile_id in missing_pfiles:
+        warn("Expected pfile (id: {}) in {} but none were found.".format(
+            pfile_id, series_dir))
+    for pfile_path, dcm_headers in nonmatching_pfiles:
+        warn("Pfile {} headers do not match exam/series number.".format(
+            pfile_path))
         
 
 def package_exams(arguments): 
@@ -484,6 +523,22 @@ def list_exams(arguments):
         table = table[-10:]
     print
     print tabulate.tabulate(table, headers=headers )
+    print
+
+def list_series(arguments):
+    """
+    List the series for an exam. 
+    """
+    examid     = arguments['<exam_number>'][0]   
+    connection = _get_scanner_connection(arguments)
+    records    = connection.find(scu.SeriesQuery(StudyID = examid))
+
+    headers = "SeriesNumber", "SeriesDescription","ImagesInAcquisition"
+    table = [ [ r.get(key,"") for key in headers ] for r in records ]
+    table = sorted(table, key=lambda row: int(row[0]))
+
+    print
+    print tabulate.tabulate(table, headers=headers)
     print
 
 def show_staged(arguments): 
@@ -698,21 +753,25 @@ Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
     mritool [options] pull [<exam_number>...]
-    mritool [options] zip <exam_number>...
+    mritool [options] pull-series <exam_number> <series_number> [<outputdir>]
     mritool [options] list [tail] [<exam_number>...]
+    mritool [options] list-series <exam_number>
     mritool [options] list-staged
     mritool [options] list-zipped 
     mritool [options] check <exam_number>...
+    mritool [options] zip <exam_number>...
     mritool [options] rm <exam_number>...
 
 Commands: 
     pull                       Get an exam from the scanner
-    zip                        Zip up exam
+    pull-series                Get a single series from the scanner
     list                       List all exams on the scanner
+    list-series                List all series for the exam on the scanner
     list-staged                List the exams in the staging area
     list-zipped                List the exams that have been zipped
     check                      Check that a staged exam has all of its files
     rm                         Remove exam data from the staging area
+    zip                        Zip up exam
 
 Options: 
     --scans-dir=<dir>          Staging directory [default: {defaults[scans]}]
@@ -740,8 +799,12 @@ Options:
         show_staged(arguments)
     if arguments['list-zipped']:
         show_zipped(arguments)
+    if arguments['list-series']:
+        list_series(arguments)
     if arguments['pull']:
         pull_exams(arguments)
+    if arguments['pull-series']:
+        pull_series(arguments)
     if arguments['zip']:
         package_exams(arguments)
     if arguments['rm']:
