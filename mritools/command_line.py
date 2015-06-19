@@ -333,8 +333,9 @@ def check_exam_for_pfiles(dcm_info):
             missing_pfiles.append( (series_dir, pfile_id) )
 
         for pfile_path, pfile_headers in pfiles_headers.iteritems():
-            if str(pfile_headers["exam_id"]) != str(ds["StudyID"]) or \
-               str(pfile_headers["series_number"]) != str(ds["SeriesNumber"]):
+            print pfile_path 
+            if str(pfile_headers["exam_number"]) != str(ds.get("StudyID")) or \
+               str(pfile_headers["series_number"]) != str(ds.get("SeriesNumber")):
                 nonmatching_pfiles.append( (pfile_path, ds) )
 
 
@@ -525,12 +526,8 @@ def list_exams(arguments):
     headers = headers + ["Staged", "Zipped"]
     for row in table: 
         studyid = row[0]
-        staged = "no"
-        zipped = "no"
-        if len(glob.glob(os.path.join(staging_dir,"*_Ex"+studyid+"_*"))) > 0: 
-            staged = "yes"
-        if len(glob.glob(os.path.join(scans_dir,"*_Ex"+studyid+"_*"))) > 0: 
-            zipped = "yes"
+        staged = glob.glob(staging_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
+        zipped = glob.glob(scans_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
         row.extend( [ staged, zipped] ) 
 
     print
