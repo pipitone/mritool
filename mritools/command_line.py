@@ -468,9 +468,7 @@ def package_exams(arguments):
     log_dir    = arguments['--log-dir'] 
     connection = _get_scanner_connection(arguments)
 
-    if not os.path.exists(scans_dir): 
-        fatal("Scans folder (--scans-dir) {0} does not exist.".format(study_dir))
-        return 
+    if not os.path.exists(scans_dir): os.makedirs(scans_dir)
 
     # look in staging for <bookingcode>/.*E<examid>_.* folders
     staged_exams = index_exams(listdir_fullpath(staging_dir))
