@@ -690,6 +690,7 @@ def check_staged(arguments):
         warnings = _check_staged(examid, examdir, connection)
 
         for warning in warnings: warn(warning)
+        if not warnings: print "All files present for exam {}".format(examid)
 
 def _get_scanner_connection(arguments): 
     host       = arguments['--host']
