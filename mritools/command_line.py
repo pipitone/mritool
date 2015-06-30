@@ -9,6 +9,7 @@ import logging
 import os
 import pwd
 import os.path
+import fnmatch
 import dicom
 import glob 
 import sys
@@ -505,24 +506,37 @@ def package_exams(arguments):
 def list_exams(arguments): 
     scans_dir  = arguments['--scans-dir']
     staging_dir= arguments['--staging-dir']
+
     connection = _get_scanner_connection(arguments)
+
     records    = connection.find(scu.StudyQuery())
 
     headers = [ "StudyID", "StudyDate", "PatientID", "StudyDescription", "PatientName"] 
-    table = [ [ r.get(key,"") for key in headers ] for r in records ]
-    table = sorted(table, key=lambda row: int(row[0]))
+    table   = [ { key : r.get(key,"") for key in headers } for r in records ]
 
-    if arguments["<number>"]:
-        table = table[-int(arguments["<number>"]):]
+    def filter_exams(row):
+        """Filter the exams by user filters."""
+        code = arguments['-b']
+        exam = arguments['-e']
+        date = arguments['-d']
 
+        if date and not fnmatch.fnmatch(row['StudyDate'],date): return False
+        if exam and not fnmatch.fnmatch(row['StudyID'],exam): return False
+        if code and not fnmatch.fnmatch(row['StudyDescription'],code): return False
+        return True
+
+    table = filter(filter_exams, table)
+        
+        
     # check if zipped or staged
-    headers = headers + ["Staged", "Zipped"]
+    headers = headers + ["Staged"]
     for row in table: 
-        studyid = row[0]
-        staged = glob.glob(staging_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
-        zipped = glob.glob(scans_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
-        row.extend( [ staged, zipped] ) 
-
+        studyid = row['StudyID']
+        row["Staged"] = glob.glob(staging_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
+    
+    # sort, de-dictionary and print
+    table  = sorted(table, key=lambda row: int(row['StudyID']))
+    table  = [ [r[h] for h in headers]  for r in table ]
     print
     print tabulate.tabulate(table, headers=headers )
     print
@@ -725,7 +739,7 @@ Finds and copies exam data into a well-organized folder structure.
 Usage: 
     mritool [options] pull-exams <exam_number>... 
     mritool [options] pull-series <exam_number> <series_number> [<outputdir>]
-    mritool [options] list-exams [<number>] 
+    mritool [options] list-exams [-b <booking_code>] [-e <exam_number>] [-d <date>]
     mritool [options] list-series <exam_number>
     mritool [options] list-staged
     mritool [options] list-zipped 
@@ -745,6 +759,9 @@ Commands:
     zip                        Zip up exam
 
 Options: 
+    -b <bookingcode>           Booking code (StudyDescription)
+    -d <date>                  Date (StudyDate)
+    -e <exam_number>           Exam number (StudyID)
     --scans-dir=<dir>          Staging directory [default: {defaults[scans]}]
     --staging-dir=<dir>        Staging directory [default: {defaults[staging]}]
     --log-dir=<dir>            Logging directory [default: {defaults[logs]}]
