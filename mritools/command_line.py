@@ -19,7 +19,6 @@ import traceback
 from collections import defaultdict
 
 VERBOSE = False
-DRYRUN = False
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
 EXAMID_PADDING = 5      # Zero pad chars when formatting exam IDs
@@ -51,7 +50,6 @@ def log(message):
 
 def run(command): 
     verbose("EXEC: " + command)
-    if DRYRUN: return 
     os.system(command)
 
 ####
@@ -375,7 +373,7 @@ def pull_exams(arguments):
         else:
             log("Fetching DICOMS into {0}".format(examdir))
             os.makedirs(examdir) 
-            if not DRYRUN: connection.move(scu.StudyQuery(StudyID = examid), examdir)
+            connection.move(scu.StudyQuery(StudyID = examid), examdir)
 
             # move dicom files into folders
             _sort_exam(examdir)
@@ -418,7 +416,7 @@ def _sort_exam(examdir):
         verbose("Moving {} to {}".format(source, dest))
         if not os.path.exists(os.path.dirname(dest)): 
             os.makedirs(os.path.dirname(dest))
-        if not DRYRUN: shutil.move(source,dest)
+        shutil.move(source,dest)
 
 def _fetch_nondicom_exam_data(examdir, examid, pfile_dir): 
     """ Find perhipheral data """
@@ -432,7 +430,7 @@ def _fetch_nondicom_exam_data(examdir, examid, pfile_dir):
         directory = os.path.dirname(dest)
         if not os.path.exists(directory): 
             os.makedirs(directory)
-        if not DRYRUN: shutil.copy(source, dest)
+        shutil.copy(source, dest)
 
     ###
     ## Check dicom headers for related pfiles
@@ -679,7 +677,6 @@ def _check_inprocess(examid, examdir, connection):
     return warnings
     
 def main(): 
-    global DRYRUN 
     global VERBOSE
 
     defaults = UserDict.UserDict()
@@ -725,14 +722,12 @@ Options:
     --aet=<str>               Scanner AET [default: {defaults[aet]}]
     --aec=<str>               Calling machine AEC [default: {defaults[aec]}]
     -f, --force               Force a command, even if there are warnings.
-    -n, --dry-run             Do nothing, but show what would be done. 
     -v, --verbose             Verbose messaging.
 
 """.format(defaults=defaults)
 
     arguments = docopt(options)
 
-    DRYRUN = arguments['--dry-run']
     VERBOSE = arguments['--verbose']
     
     if arguments['list-exams']:
