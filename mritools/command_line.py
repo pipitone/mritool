@@ -645,7 +645,7 @@ def check_series_dicoms(examdir, examid, seriesinfo):
 
         # Confirm series folder exists, if it doesn't: warn
         if not os.path.exists(seriesdir):
-            warn("Exam {}: expected series folder {} does not exist.".format(
+            warnings.append("Exam {}: expected series folder {} does not exist.".format(
                 examid, seriesdir))
             continue
 
