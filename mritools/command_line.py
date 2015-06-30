@@ -739,9 +739,9 @@ def main():
 
     defaults = UserDict.UserDict()
     defaults['raw']     = os.environ.get("MRITOOL_RAW_DIR"    ,"/mnt/mrraw/camh")
-    defaults['staging'] = os.environ.get("MRITOOL_STAGING_DIR","./output/staging")
-    defaults['scans']   = os.environ.get("MRITOOL_SCANS_DIR"  ,"./output/processed")
-    defaults['logs']    = os.environ.get("MRITOOL_LOGS_DIR"   ,"./output/logs")
+    defaults['staging'] = os.environ.get("MRITOOL_STAGING_DIR","/data/mritooltest/InProcess")
+    defaults['scans']   = os.environ.get("MRITOOL_SCANS_DIR"  ,"/data/mritooltest/Processed")
+    defaults['logs']    = os.environ.get("MRITOOL_LOGS_DIR"   ,"/data/mritooltest/logs")
     defaults['host']    = os.environ.get("MRITOOL_HOST"       ,"CAMHMR")
     defaults['port']    = os.environ.get("MRITOOL_PORT"       ,"4006")
     defaults['aet']     = os.environ.get("MRITOOL_AET"        ,"mr-srv1")
