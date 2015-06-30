@@ -741,10 +741,12 @@ Commands:
     complete                  Mark an exam as complete by moving it to the processed folder
     sync-exams                Pulls all unpulled exams into the processing folder
 
-Options: 
+Command options: 
     -b <bookingcode>          Booking code (StudyDescription)
     -d <date>                 Date (StudyDate)
     -e <exam>                 Exam number (StudyID)
+
+Global options: 
     --inprocess-dir=<dir>     In-process exams directory [default: {defaults[inprocess]}]
     --processed-dir=<dir>     Processed exams directory [default: {defaults[processed]}]
     --log-dir=<dir>           Logging directory [default: {defaults[logs]}]
