@@ -705,6 +705,22 @@ def _check_inprocess(examid, examdir, connection):
                 pfile_path))
     
     return warnings
+
+def pfile_headers(path): 
+    """ Dump out the headers for a pfile """
+    headers = pfiles.get_pfile_headers(path)     
+    if not headers: 
+        warn("{} is not a pfile.".format(path))
+        return
+    table = []
+    for k,v in headers.iteritems(): 
+        try:
+            table.append([str(k).decode('ascii'), str(v).decode('ascii')]) 
+        except: pass
+
+    print
+    print tabulate.tabulate(table, headers= ["Header", "Value"])
+    print
     
 def main(): 
     global VERBOSE
@@ -730,6 +746,7 @@ Usage:
     mritool [options] list-series <exam>
     mritool [options] list-inprocess
     mritool [options] sync-exams
+    mritool pfile-headers <pfile>
 
 Commands: 
     pull-exams                Get an exam from the scanner
@@ -780,6 +797,8 @@ Global options:
         check_inprocess(arguments)
     if arguments['sync-exams']:
         sync(arguments)
+    if arguments['pfile-headers']:
+        pfile_headers(arguments['<pfile>'])
     
 if __name__ == "__main__":
     main()
