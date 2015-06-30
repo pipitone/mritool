@@ -595,33 +595,6 @@ def show_zipped(arguments):
     print tabulate.tabulate(table, headers=headers )
     print 
 
-def remove_staged(arguments): 
-    """
-    Remove a staged exam from the staging area. 
-    """
-    scans_dir  = arguments['--scans-dir']
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
-
-    staged_exams = index_exams(listdir_fullpath(staging_dir))
-    staged_by_id = { ds.get("StudyID") : path for path, ds in staged_exams.iteritems() } 
-
-    for examid in arguments['<exam_number>']: 
-        if examid not in staged_by_id: 
-            warn("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
-                examid, staging_dir))
-            continue
-        examdir = staged_by_id[examid]
-        exam_name = os.path.basename(examdir)
-        pkg_path  = "{0}/{1}.zip".format(scans_dir,exam_name)
-        
-        if not os.path.exists(pkg_path) and not arguments['--force']: 
-            warn("Zip for exam {} doesn't exists. Skipping. Use --force to remove anyway.".format(
-                examid))
-            continue
-        shutil.rmtree(examdir) 
-
 def check_series_dicoms(examdir, examid, seriesinfo):
     """
     Checks that all series are present with correct dicom files. 
@@ -805,8 +778,6 @@ Options:
         pull_series(arguments)
     if arguments['zip']:
         package_exams(arguments)
-    if arguments['rm']:
-        remove_staged(arguments)
     if arguments['check-staged']:
         check_staged(arguments)
     
