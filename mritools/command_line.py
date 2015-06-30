@@ -186,7 +186,7 @@ def find_pfiles(pfile_dir, examdir, examid):
         ## Spectroscopy PFiles
         ###
         if kind == "spectroscopy":   
-            # Copy the single pfile to the series folder in staging
+            # Copy the single pfile to the series folder in inprocess
             # and name the file: Ex#####_Se######_P#####.7
             n     = pfile_headers["series_number"]
             prefix = format_series_name(examid, n, "")
@@ -208,7 +208,7 @@ def find_pfiles(pfile_dir, examdir, examid):
         ## fMRI PFiles
         ###
         elif kind == "fmri":
-            # Copy the parent folder, and all it contains, to exam in staging
+            # Copy the parent folder, and all it contains, to exam in inprocess
             # Name the series folder: Ex#####_Se######_Description
             # Name each of the files: Ex#####_Se######_<originalfilename>
             # Except for sprl.nii: Ex#####_Se######_<pfilename>.nii
@@ -345,11 +345,11 @@ def check_exam_for_pfiles(dcm_info):
 ###########################################
 
 def pull_exams(arguments): 
-    examids    = arguments['<exam_number>']
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
-    connection = _get_scanner_connection(arguments)
+    examids       = arguments['<exam_number>']
+    inprocess_dir = arguments['--inprocess-dir']
+    pfile_dir     = arguments['--pfile-dir'] 
+    log_dir       = arguments['--log-dir'] 
+    connection    = _get_scanner_connection(arguments)
 
     for examid in examids:
         examinfo   = connection.find(scu.StudyQuery(StudyID = examid))
@@ -363,7 +363,7 @@ def pull_exams(arguments):
         ## Set up   
         ### 
         examdirname = format_exam_name(examinfo) 
-        examdir  = os.path.join(staging_dir,examdirname)
+        examdir  = os.path.join(inprocess_dir,examdirname)
         
         log("Considering exam {}, description: '{}' ...".format(examid, studydescr))
         
@@ -451,28 +451,28 @@ def _fetch_nondicom_exam_data(examdir, examid, pfile_dir):
             pfile_path))
         
 def package_exams(arguments): 
-    scans_dir  = arguments['--scans-dir']
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
-    connection = _get_scanner_connection(arguments)
+    processed_dir = arguments['--processed-dir']
+    inprocess_dir = arguments['--inprocess-dir']
+    pfile_dir     = arguments['--pfile-dir'] 
+    log_dir       = arguments['--log-dir'] 
+    connection    = _get_scanner_connection(arguments)
 
-    if not os.path.exists(scans_dir): os.makedirs(scans_dir)
+    if not os.path.exists(processed_dir): os.makedirs(processed_dir)
 
-    # look in staging for <bookingcode>/.*E<examid>_.* folders
-    staged_exams = index_exams(listdir_fullpath(staging_dir))
-    staged_by_id = { ds.get("StudyID") : path for path, ds in staged_exams.iteritems() } 
+    # look in inprocess for <bookingcode>/.*E<examid>_.* folders
+    inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
+    inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
     for examid in arguments['<exam_number>']: 
-        if examid not in staged_by_id: 
-            fatal("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
-                examid, staging_dir))
+        if examid not in inprocess_by_id: 
+            fatal("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
+                examid, inprocess_dir))
             continue
-        examdir  = staged_by_id[examid]
+        examdir  = inprocess_by_id[examid]
         examstem = os.path.basename(examdir)
-        destdir  = os.path.join(scans_dir, examstem)
+        destdir  = os.path.join(processed_dir, examstem)
 
-        warnings = _check_staged(examid, examdir, connection)
+        warnings = _check_inprocess(examid, examdir, connection)
         
         if os.path.exists(destdir):
             warn("{0} folder already exists. Skipping.".format(destdir))
@@ -486,11 +486,11 @@ def package_exams(arguments):
             continue
 
         log("Moving exam {0} to {1}".format(examid, destdir))
-        shutil.move(examdir, scans_dir)
+        shutil.move(examdir, processed_dir)
             
 def list_exams(arguments): 
-    scans_dir  = arguments['--scans-dir']
-    staging_dir= arguments['--staging-dir']
+    processed_dir = arguments['--processed-dir']
+    inprocess_dir = arguments['--inprocess-dir']
 
     connection = _get_scanner_connection(arguments)
 
@@ -513,11 +513,11 @@ def list_exams(arguments):
     table = filter(filter_exams, table)
         
         
-    # check if staged
+    # check if inprocess
     headers = headers + ["Staged"]
     for row in table: 
         studyid = row['StudyID']
-        row["Staged"] = glob.glob(staging_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
+        row["Staged"] = glob.glob(inprocess_dir+"/*_Ex"+studyid+"_*") and "yes" or "no"
     
     # sort, de-dictionary and print
     table  = sorted(table, key=lambda row: int(row['StudyID']))
@@ -542,13 +542,13 @@ def list_series(arguments):
     print tabulate.tabulate(table, headers=headers)
     print
 
-def show_staged(arguments): 
+def show_inprocess(arguments): 
     """
-    Show the exams in the staging area.
+    Show the exams in the inprocess area.
     """
 
-    scans_dir  = arguments['--scans-dir']
-    staging_dir= arguments['--staging-dir']
+    processed_dir  = arguments['--processed-dir']
+    inprocess_dir= arguments['--inprocess-dir']
     pfile_dir  = arguments['--pfile-dir'] 
     log_dir    = arguments['--log-dir'] 
     
@@ -556,7 +556,7 @@ def show_staged(arguments):
     headers = ["Path"] + dicom_headers
     table = [] 
 
-    for examdir, ds in index_exams(listdir_fullpath(staging_dir)).iteritems(): 
+    for examdir, ds in index_exams(listdir_fullpath(inprocess_dir)).iteritems(): 
         row = [examdir]    # Path
         for header in dicom_headers:
             row.append(ds.get(header,""))
@@ -604,9 +604,9 @@ def check_series_dicoms(examdir, examid, seriesinfo):
 
     return warnings
 
-def check_staged(arguments):
+def check_inprocess(arguments):
     """
-    Check that a staged exam is complete. 
+    Check that a inprocess exam is complete. 
 
     This checks for the following things: 
         - Each series is present (if possible)
@@ -614,25 +614,25 @@ def check_staged(arguments):
         - All pfile data is present
         - All physio data is present
     """
-    scans_dir  = arguments['--scans-dir']
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
-    connection = _get_scanner_connection(arguments)
+    processed_dir = arguments['--processed-dir']
+    inprocess_dir = arguments['--inprocess-dir']
+    pfile_dir     = arguments['--pfile-dir'] 
+    log_dir       = arguments['--log-dir'] 
+    connection    = _get_scanner_connection(arguments)
 
-    staged_exams = index_exams(listdir_fullpath(staging_dir))
-    staged_by_id = { ds.get("StudyID") : path for path, ds in staged_exams.iteritems() } 
+    inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
+    inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
     for examid in arguments['<exam_number>']: 
-        if examid not in staged_by_id: 
-            warn("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
-                examid, staging_dir))
+        if examid not in inprocess_by_id: 
+            warn("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
+                examid, inprocess_dir))
             continue
 
-        examinfo = staged_exams[staged_by_id[examid]]
+        examinfo = inprocess_exams[inprocess_by_id[examid]]
         examname = format_exam_name(examinfo)
-        examdir  = os.path.join(staging_dir, examname)
-        warnings = _check_staged(examid, examdir, connection)
+        examdir  = os.path.join(inprocess_dir, examname)
+        warnings = _check_inprocess(examid, examdir, connection)
 
         for warning in warnings: warn(warning)
         if not warnings: print "All dicom files present for exam {}".format(examid)
@@ -645,9 +645,9 @@ def _get_scanner_connection(arguments):
     rport      = port    # return port is the same (for now)
     return scu.SCU(host, port, rport, aet, aec) 
 
-def _check_staged(examid, examdir, connection):
+def _check_inprocess(examid, examdir, connection):
     """
-    Internal method for doing all checks on a staged exam. See check_staged
+    Internal method for doing all checks on a inprocess exam. See check_inprocess
 
     Returns [] if successful, and a list of user warnings otherwise
     """
@@ -683,14 +683,14 @@ def main():
     global VERBOSE
 
     defaults = UserDict.UserDict()
-    defaults['raw']     = os.environ.get("MRITOOL_RAW_DIR"    ,"/mnt/mrraw/camh")
-    defaults['staging'] = os.environ.get("MRITOOL_STAGING_DIR","/data/mritooltest/InProcess")
-    defaults['scans']   = os.environ.get("MRITOOL_SCANS_DIR"  ,"/data/mritooltest/Processed")
-    defaults['logs']    = os.environ.get("MRITOOL_LOGS_DIR"   ,"/data/mritooltest/logs")
-    defaults['host']    = os.environ.get("MRITOOL_HOST"       ,"CAMHMR")
-    defaults['port']    = os.environ.get("MRITOOL_PORT"       ,"4006")
-    defaults['aet']     = os.environ.get("MRITOOL_AET"        ,"mr-srv1")
-    defaults['aec']     = os.environ.get("MRITOOL_AEC"        ,"CAMHMR")
+    defaults['raw']       = os.environ.get("MRITOOL_RAW_DIR"      ,"/mnt/mrraw/camh")
+    defaults['inprocess'] = os.environ.get("MRITOOL_INPROCESS_DIR","/data/mritooltest/InProcess")
+    defaults['processed'] = os.environ.get("MRITOOL_PROCESSED_DIR","/data/mritooltest/Processed")
+    defaults['logs']      = os.environ.get("MRITOOL_LOGS_DIR"     ,"/data/mritooltest/logs")
+    defaults['host']      = os.environ.get("MRITOOL_HOST"         ,"CAMHMR")
+    defaults['port']      = os.environ.get("MRITOOL_PORT"         ,"4006")
+    defaults['aet']       = os.environ.get("MRITOOL_AET"          ,"mr-srv1")
+    defaults['aec']       = os.environ.get("MRITOOL_AEC"          ,"CAMHMR")
     options = """ 
 Finds and copies exam data into a well-organized folder structure.
 
@@ -699,34 +699,34 @@ Usage:
     mritool [options] pull-series <exam_number> <series_number> [<outputdir>]
     mritool [options] list-exams [-b <booking_code>] [-e <exam_number>] [-d <date>]
     mritool [options] list-series <exam_number>
-    mritool [options] list-staged
-    mritool [options] check-staged <exam_number>...
+    mritool [options] list-inprocess
+    mritool [options] check <exam_number>...
     mritool [options] complete <exam_number>...
 
 Commands: 
-    pull-exams                 Get an exam from the scanner
-    pull-series                Get a single series from the scanner
-    list-exams                 List all exams on the scanner
-    list-series                List all series for the exam on the scanner
-    list-staged                List the exams in the staging area
-    check-staged               Check that a staged exam has all of its files
-    complete                   Mark an exam as complete by moving it to the processed folder
+    pull-exams                Get an exam from the scanner
+    pull-series               Get a single series from the scanner
+    list-exams                List all exams on the scanner
+    list-series               List all series for the exam on the scanner
+    list-inprocess            List the exams in the inprocess area
+    check                     Check that an exam being processed has all of its files
+    complete                  Mark an exam as complete by moving it to the processed folder
 
 Options: 
-    -b <bookingcode>           Booking code (StudyDescription)
-    -d <date>                  Date (StudyDate)
-    -e <exam_number>           Exam number (StudyID)
-    --scans-dir=<dir>          Staging directory [default: {defaults[scans]}]
-    --staging-dir=<dir>        Staging directory [default: {defaults[staging]}]
-    --log-dir=<dir>            Logging directory [default: {defaults[logs]}]
-    --pfile-dir=<dir>          Pfile directory [default: {defaults[raw]}]
-    --host=<str>               Scanner hostname [default: {defaults[host]}]
-    --port=<num>               Scanner port [default: {defaults[port]}]
-    --aet=<str>                Scanner AET [default: {defaults[aet]}]
-    --aec=<str>                Calling machine AEC [default: {defaults[aec]}]
-    -f, --force                Force a command, even if there are warnings.
-    -n, --dry-run              Do nothing, but show what would be done. 
-    -v, --verbose              Verbose messaging.
+    -b <bookingcode>          Booking code (StudyDescription)
+    -d <date>                 Date (StudyDate)
+    -e <exam_number>          Exam number (StudyID)
+    --inprocess-dir=<dir>     In-process exams directory [default: {defaults[inprocess]}]
+    --processed-dir=<dir>     Processed exams directory [default: {defaults[processed]}]
+    --log-dir=<dir>           Logging directory [default: {defaults[logs]}]
+    --pfile-dir=<dir>         Pfile directory [default: {defaults[raw]}]
+    --host=<str>              Scanner hostname [default: {defaults[host]}]
+    --port=<num>              Scanner port [default: {defaults[port]}]
+    --aet=<str>               Scanner AET [default: {defaults[aet]}]
+    --aec=<str>               Calling machine AEC [default: {defaults[aec]}]
+    -f, --force               Force a command, even if there are warnings.
+    -n, --dry-run             Do nothing, but show what would be done. 
+    -v, --verbose             Verbose messaging.
 
 """.format(defaults=defaults)
 
@@ -737,8 +737,8 @@ Options:
     
     if arguments['list-exams']:
         list_exams(arguments)
-    if arguments['list-staged']:
-        show_staged(arguments)
+    if arguments['list-inprocess']:
+        show_inprocess(arguments)
     if arguments['list-series']:
         list_series(arguments)
     if arguments['pull-exams']:
@@ -747,8 +747,8 @@ Options:
         pull_series(arguments)
     if arguments['complete']:
         package_exams(arguments)
-    if arguments['check-staged']:
-        check_staged(arguments)
+    if arguments['check']:
+        check_inprocess(arguments)
     
 if __name__ == "__main__":
     main()
