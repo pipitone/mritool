@@ -16,7 +16,6 @@ import sys
 import UserDict
 import re
 import traceback 
-import zipfile
 from collections import defaultdict
 
 VERBOSE = False
@@ -341,17 +340,6 @@ def check_exam_for_pfiles(dcm_info):
 
     return missing_pfiles, nonmatching_pfiles
 
-def zipdir(path, ziph):
-    """
-    Zips up a path (including subdirs and files)
-
-    ziph is zipfile handle
-    """
-
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            ziph.write(os.path.join(root, file))
-
 ####
 # Command line operations 
 ###########################################
@@ -480,15 +468,15 @@ def package_exams(arguments):
             fatal("Unable to find exam {0} in the staging dir {1}. Skipping.".format(
                 examid, staging_dir))
             continue
-        examdir = staged_by_id[examid]
-        exam_name = os.path.basename(examdir)
-        pkg_path  = "{0}/{1}.zip".format(scans_dir,exam_name)
+        examdir  = staged_by_id[examid]
+        examstem = os.path.basename(examdir)
+        destdir  = os.path.join(scans_dir, examstem)
 
         warnings = _check_staged(examid, examdir, connection)
         
-        if os.path.exists(pkg_path):
-            warnings.append(
-                "{0} zip already exists. Skipping.".format(pkg_path))
+        if os.path.exists(destdir):
+            warn("{0} folder already exists. Skipping.".format(destdir))
+            continue
 
         for warning in warnings: warn(warning)
 
@@ -497,11 +485,8 @@ def package_exams(arguments):
                 examid))
             continue
 
-
-        log("Packing exam {0} as {1}".format(examid, pkg_path))
-        ziph = zipfile.ZipFile(pkg_path,'w')
-        zipdir(examdir,ziph)
-        ziph.close()
+        log("Moving exam {0} to {1}".format(examid, destdir))
+        shutil.move(examdir, scans_dir)
             
 def list_exams(arguments): 
     scans_dir  = arguments['--scans-dir']
@@ -528,7 +513,7 @@ def list_exams(arguments):
     table = filter(filter_exams, table)
         
         
-    # check if zipped or staged
+    # check if staged
     headers = headers + ["Staged"]
     for row in table: 
         studyid = row['StudyID']
@@ -568,46 +553,19 @@ def show_staged(arguments):
     log_dir    = arguments['--log-dir'] 
     
     dicom_headers = ["StudyID", "StudyDate", "PatientID", "StudyDescription", "PatientName"]
-    headers = ["Path"] + dicom_headers + ["Zipped"]
+    headers = ["Path"] + dicom_headers
     table = [] 
 
     for examdir, ds in index_exams(listdir_fullpath(staging_dir)).iteritems(): 
         row = [examdir]    # Path
         for header in dicom_headers:
             row.append(ds.get(header,""))
-        exam_name = os.path.basename(examdir)
-        pkg_path  = "{0}/{1}.zip".format(scans_dir,exam_name)
-        row.append(os.path.exists(pkg_path) and "yes" or "no")
         table.append(row)         
 
     table = sorted(table, key=lambda row: int(row[1]))   #  sort by study id 
     print
     print tabulate.tabulate(table, headers=headers )
     print
-
-def show_zipped(arguments): 
-    """
-    Show the exams in the staging area.
-    """
-
-    scans_dir  = arguments['--scans-dir']
-    staging_dir= arguments['--staging-dir']
-    pfile_dir  = arguments['--pfile-dir'] 
-    log_dir    = arguments['--log-dir'] 
-    
-    headers = ["Path", "Staged"]
-    table = [] 
-
-    for zip in glob.glob(scans_dir + "/*.zip"):
-        row = [zip]    # Path
-        examname = os.path.basename(zip).replace(".zip","")
-        row.append(os.path.exists(staging_dir + "/" + examname) and "yes" or "no")
-        table.append(row)         
-
-    table = sorted(table, key=lambda row: row[0]) 
-    print 
-    print tabulate.tabulate(table, headers=headers )
-    print 
 
 def check_series_dicoms(examdir, examid, seriesinfo):
     """
@@ -742,10 +700,8 @@ Usage:
     mritool [options] list-exams [-b <booking_code>] [-e <exam_number>] [-d <date>]
     mritool [options] list-series <exam_number>
     mritool [options] list-staged
-    mritool [options] list-zipped 
     mritool [options] check-staged <exam_number>...
-    mritool [options] zip <exam_number>...
-    mritool [options] rm <exam_number>...
+    mritool [options] complete <exam_number>...
 
 Commands: 
     pull-exams                 Get an exam from the scanner
@@ -753,10 +709,8 @@ Commands:
     list-exams                 List all exams on the scanner
     list-series                List all series for the exam on the scanner
     list-staged                List the exams in the staging area
-    list-zipped                List the exams that have been zipped
     check-staged               Check that a staged exam has all of its files
-    rm                         Remove exam data from the staging area
-    zip                        Zip up exam
+    complete                   Mark an exam as complete by moving it to the processed folder
 
 Options: 
     -b <bookingcode>           Booking code (StudyDescription)
@@ -785,15 +739,13 @@ Options:
         list_exams(arguments)
     if arguments['list-staged']:
         show_staged(arguments)
-    if arguments['list-zipped']:
-        show_zipped(arguments)
     if arguments['list-series']:
         list_series(arguments)
     if arguments['pull-exams']:
         pull_exams(arguments)
     if arguments['pull-series']:
         pull_series(arguments)
-    if arguments['zip']:
+    if arguments['complete']:
         package_exams(arguments)
     if arguments['check-staged']:
         check_staged(arguments)
