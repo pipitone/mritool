@@ -345,7 +345,7 @@ def check_exam_for_pfiles(dcm_info):
 ###########################################
 
 def pull_exams(arguments): 
-    examids       = arguments['<exam_number>']
+    examids       = arguments['<exam>']
     inprocess_dir = arguments['--inprocess-dir']
     pfile_dir     = arguments['--pfile-dir'] 
     log_dir       = arguments['--log-dir'] 
@@ -384,8 +384,8 @@ def pull_exams(arguments):
         _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
 
 def pull_series(arguments): 
-    examid     = arguments['<exam_number>'][0]
-    seriesno   = arguments['<series_number>']
+    examid     = arguments['<exam>'][0]
+    seriesno   = arguments['<series>']
     outputdir  = arguments['<outputdir>'] or '.'
     pfile_dir  = arguments['--pfile-dir'] 
     connection = _get_scanner_connection(arguments)
@@ -463,7 +463,7 @@ def package_exams(arguments):
     inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
     inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
-    for examid in arguments['<exam_number>']: 
+    for examid in arguments['<exam>']: 
         if examid not in inprocess_by_id: 
             fatal("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
                 examid, inprocess_dir))
@@ -530,7 +530,7 @@ def list_series(arguments):
     """
     List the series for an exam. 
     """
-    examid     = arguments['<exam_number>'][0]   
+    examid     = arguments['<exam>'][0]   
     connection = _get_scanner_connection(arguments)
     records    = connection.find(scu.SeriesQuery(StudyID = examid))
 
@@ -623,7 +623,7 @@ def check_inprocess(arguments):
     inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
     inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
-    for examid in arguments['<exam_number>']: 
+    for examid in arguments['<exam>']: 
         if examid not in inprocess_by_id: 
             warn("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
                 examid, inprocess_dir))
@@ -695,13 +695,13 @@ def main():
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool [options] pull-exams <exam_number>... 
-    mritool [options] pull-series <exam_number> <series_number> [<outputdir>]
-    mritool [options] list-exams [-b <booking_code>] [-e <exam_number>] [-d <date>]
-    mritool [options] list-series <exam_number>
+    mritool [options] pull-exams <exam>... 
+    mritool [options] pull-series <exam> <series> [<outputdir>]
+    mritool [options] list-exams [-b <booking_code>] [-e <exam>] [-d <date>]
+    mritool [options] list-series <exam>
     mritool [options] list-inprocess
-    mritool [options] check <exam_number>...
-    mritool [options] complete <exam_number>...
+    mritool [options] check <exam>...
+    mritool [options] complete <exam>...
 
 Commands: 
     pull-exams                Get an exam from the scanner
@@ -715,7 +715,7 @@ Commands:
 Options: 
     -b <bookingcode>          Booking code (StudyDescription)
     -d <date>                 Date (StudyDate)
-    -e <exam_number>          Exam number (StudyID)
+    -e <exam>                 Exam number (StudyID)
     --inprocess-dir=<dir>     In-process exams directory [default: {defaults[inprocess]}]
     --processed-dir=<dir>     Processed exams directory [default: {defaults[processed]}]
     --log-dir=<dir>           Logging directory [default: {defaults[logs]}]
