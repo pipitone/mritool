@@ -5,6 +5,7 @@ import scu
 from docopt import docopt
 import shutil
 import tabulate
+import tempfile
 import logging
 import os
 import pwd
@@ -253,7 +254,7 @@ def find_pfiles(pfile_dir, examdir, examid):
 
     return files 
 
-def sort_exam(examdir): 
+def sort_exam(unsorteddir, sorteddir): 
     """
     Determines how to move dicom files into well-named series subfolders. 
 
@@ -262,7 +263,7 @@ def sort_exam(examdir):
     """
 
     dcm_dict = {}  # seq -> [ (path, dcminfo)... ] 
-    for dcm_file in glob.glob(os.path.join(examdir,"*")):
+    for dcm_file in glob.glob(os.path.join(unsorteddir,"*")):
         try: 
             if os.path.isdir(dcm_file): continue 
             ds = dicom.read_file(dcm_file)
@@ -286,7 +287,7 @@ def sort_exam(examdir):
         examid = ds.get("StudyID")
         seriesdescr = ds.get("SeriesDescription","")
         seriesname = format_series_name(examid, seq, seriesdescr)
-        seriesdir  = os.path.join(examdir, seriesname)
+        seriesdir  = os.path.join(sorteddir, seriesname)
 
         i = 0
         for dcmpath, ds in filedata:
@@ -378,16 +379,16 @@ def _pull_exam(connection, examinfo, inprocess_dir, pfile_dir):
     ###
     ## Copy dicoms from the scanner, and organize them into series folders
     ###
-    if os.path.isdir(examdir):  
-        verbose("Exam {0} folder exists {1}. Skipping.".format(examid, examdir)) 
-    else:
-        log("Pulling exam {} to {}".format(examid, examdir))
-        verbose("Fetching DICOMS into {0}".format(examdir))
-        os.makedirs(examdir) 
-        connection.move(scu.StudyQuery(StudyID = examid), examdir)
+    log("Pulling exam {} to {}".format(examid, examdir))
+    tempdir = tempfile.mkdtemp()
+    verbose("Fetching DICOMS into {0}".format(tempdir))
+    connection.move(scu.StudyQuery(StudyID = examid), tempdir)
 
-        # move dicom files into folders
-        _sort_exam(examdir)
+    # move dicom files into folders
+    verbose("Sorting dicoms from {} into {}".format(tempdir, examdir))
+    if not os.path.exists(examdir): os.makedirs(examdir) 
+    _sort_exam(tempdir, examdir)
+    shutil.rmtree(tempdir)
 
     # fetch all non-dicom data for the exam
     _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
@@ -415,14 +416,19 @@ def pull_series(arguments):
     examname = format_exam_name(examinfo)
     examdir  = os.path.join(outputdir, examname)
     if not os.path.exists(examdir): os.makedirs(examdir)
-    connection.move(seriesq, examdir)
-    _sort_exam(examdir)
+
+    tempdir = tempfile.mkdtemp()
+    verbose("Fetching DICOMS into {0}".format(tempdir))
+    connection.move(seriesq, tempdir)
+    _sort_exam(tempdir, examdir)
+    shutil.rmtree(tempdir)
+
     _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
 
-def _sort_exam(examdir): 
+def _sort_exam(unsorteddir, sorteddir): 
     """ Internal function rename dicoms into series folders. """
     # move dicom files into folders
-    moveops = sort_exam(examdir)
+    moveops = sort_exam(unsorteddir, sorteddir)
     for source, dest in moveops: 
         verbose("Moving {} to {}".format(source, dest))
         if not os.path.exists(os.path.dirname(dest)): 
