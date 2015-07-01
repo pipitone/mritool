@@ -638,19 +638,20 @@ def sync(arguments):
     pfile_dir     = arguments['--pfile-dir'] 
 
     pulled  = []
-    logfile = os.path.join(log_dir, 'exams.txt')
-    if os.path.exists(logfile): 
-        pulled = open(logfile,'r').read().split("\n")
+    logfilepath = os.path.join(log_dir, 'exams.txt')
+    if os.path.exists(logfilepath): 
+        pulled = open(logfilepath,'r').read().split("\n")
 
-    log = open(logfile,'a')
+    logfile = open(logfilepath,'a')
     connection = _get_scanner_connection(arguments)
 
     for exam in  connection.find(scu.StudyQuery()):
         examid = exam["StudyID"]
         if examid in pulled: continue
         query = scu.StudyQuery(StudyID = examid)
+        log("Pulling exam {}".format(examid))
         _pull_exam(connection, exam, inprocess_dir, pfile_dir, query)
-        log.write(exam['StudyID']+'\n')
+        logfile.write(exam['StudyID']+'\n')
 
 def _get_scanner_connection(arguments): 
     host       = arguments['--host']
