@@ -18,4 +18,7 @@ setup(name='mritool',
 	  entry_points = {
 		'console_scripts' : [ 'mritool = mritool.command_line:main' ],
 	  },
+	  data_files = [ 
+		('/etc/bash_completion.d', ['mritool.sh']), 
+	  ],
       zip_safe=False)
