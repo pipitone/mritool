@@ -7,7 +7,7 @@ setup(name='mritool',
       author='Jon Pipitone',
       author_email='jon@pipitone.ca',
       license='MIT',
-      packages=['mritools'],
+      packages=['mritool'],
       install_requires = [
 		'docopt', 
 		'tabulate',
@@ -16,6 +16,6 @@ setup(name='mritool',
 	  test_suite = 'nose.collector', 
       tests_require=['nose'],	
 	  entry_points = {
-		'console_scripts' : [ 'mritool = mritools.command_line:main' ],
+		'console_scripts' : [ 'mritool = mritool.command_line:main' ],
 	  },
       zip_safe=False)
