@@ -20,6 +20,7 @@ import traceback
 from collections import defaultdict
 
 VERBOSE = False
+DEBUG   = False
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
 EXAMID_PADDING = 5      # Zero pad chars when formatting exam IDs
@@ -43,15 +44,14 @@ def fatal(message, exception = None):
 def warn(message): 
     print "WARNING: {0}".format(message)
 
+def debug(message):
+    if DEBUG: log(message)
+
 def verbose(message):
-    if VERBOSE: log(message)
+    if DEBUG or VERBOSE: log(message)
 
 def log(message): 
     print "{0}".format(message)
-
-def run(command): 
-    verbose("EXEC: " + command)
-    os.system(command)
 
 ####
 #  Formatting functions
@@ -409,7 +409,7 @@ def _sort_exam(unsorteddir, sorteddir):
     # move dicom files into folders
     moveops = sort_exam(unsorteddir, sorteddir)
     for source, dest in moveops: 
-        verbose("Moving {} to {}".format(source, dest))
+        debug("Moving {} to {}".format(source, dest))
         if not os.path.exists(os.path.dirname(dest)): 
             os.makedirs(os.path.dirname(dest))
         shutil.move(source,dest)
@@ -419,10 +419,10 @@ def _fetch_nondicom_exam_data(examdir, examid, pfile_dir):
     ###
     ## Copy pFiles and related pfile assets
     ###
-    verbose("Searching for pfiles matching this exam...")
+    debug("Searching for pfiles matching this exam...")
     copyops = find_pfiles(pfile_dir, examdir, examid)
     for source, dest in copyops: 
-        verbose("Copying {} to {}".format(source, dest))
+        debug("Copying {} to {}".format(source, dest))
         directory = os.path.dirname(dest)
         if not os.path.exists(directory): 
             os.makedirs(directory)
@@ -434,7 +434,7 @@ def _fetch_nondicom_exam_data(examdir, examid, pfile_dir):
     ## A dicom series with an asssociated pfile has the DICOM_PRESSCI_KEY
     ## header set to "presssci".  
     ###
-    verbose("Checking whether all pfiles have been found...")
+    debug("Checking whether all pfiles have been found...")
     dicom_info = index_dicoms(examdir)
     missing_pfiles, nonmatching_pfiles = check_exam_for_pfiles(dicom_info) 
     for series_dir, pfile_id in missing_pfiles:
@@ -712,6 +712,7 @@ def pfile_headers(path):
     
 def main(): 
     global VERBOSE
+    global DEBUG
 
     defaults = UserDict.UserDict()
     defaults['raw']       = os.environ.get("MRITOOL_RAW_DIR"      ,"/mnt/mrraw/camh")
@@ -761,14 +762,15 @@ Global options:
     --port=<num>              Scanner port [default: {defaults[port]}]
     --aet=<str>               Scanner AET [default: {defaults[aet]}]
     --aec=<str>               Calling machine AEC [default: {defaults[aec]}]
-    -f, --force               Force a command, even if there are warnings.
-    -v, --verbose             Verbose messaging.
-
+    -f, --force               Force a command, even if there are warnings
+    -v, --verbose             Verbose messages
+    --debug                   Debug messages 
 """.format(defaults=defaults)
 
     arguments = docopt(options)
 
     VERBOSE = arguments['--verbose']
+    DEbUG   = arguments['--debug']
     
     if arguments['pull']:
         pull_exams(arguments)
