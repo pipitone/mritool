@@ -345,22 +345,35 @@ def check_exam_for_pfiles(dcm_info):
 
 def pull_exams(arguments): 
     """ Command to pull exams from the scanner. """
-    examids       = arguments['<exam>']
-    inprocess_dir = arguments['--inprocess-dir']
+    examid        = arguments['<exam>']
+    seriesno      = arguments['<series>']
+    output_dir    = arguments['-o'] or arguments['--inprocess-dir']
     pfile_dir     = arguments['--pfile-dir'] 
-    log_dir       = arguments['--log-dir'] 
+    bare          = arguments['--bare']
     connection    = _get_scanner_connection(arguments)
 
-    for examid in examids:
-        examinfo   = connection.find(scu.StudyQuery(StudyID = examid))
-        if not examinfo: 
-            warn("Exam {} not found on the scanner. Skipping.".format(examid))
-            continue
-        examinfo = examinfo[0]
-        _pull_exam(connection, examinfo, inprocess_dir, pfile_dir)
+    query    = scu.StudyQuery(StudyID = examid)
+    examinfo = connection.find(query)
+    if not examinfo: 
+        warn("Exam {} not found on the scanner. Skipping.".format(examid))
+        return 
 
-def _pull_exam(connection, examinfo, inprocess_dir, pfile_dir):
-    """Internal method to Pull exam data from the scanner. 
+    if seriesno: 
+        query      = scu.SeriesQuery(StudyID = examid, SeriesNumber = seriesno)
+        seriesinfo = connection.find(query)
+
+        if not seriesinfo: 
+            warn("Exam {}, series {} not found on the scanner. Skipping.".format(
+                examid, seriesno))
+            return 
+        log("Pulling exam {}, series {} to {}".format(examid, seriesno, output_dir))
+    else:
+        log("Pulling exam {} to {}".format(examid, output_dir))
+
+    _pull_exam(connection, examinfo[0], output_dir, pfile_dir, query, bare=bare)
+
+def _pull_exam(connection, examinfo, output_dir, pfile_dir, query, bare=None):
+    """Internal method to pull exam data from the scanner. 
 
     <examinfo> is dictionary of exam details.
     """
@@ -372,17 +385,14 @@ def _pull_exam(connection, examinfo, inprocess_dir, pfile_dir):
     ## Set up   
     ### 
     examdirname = format_exam_name(examinfo) 
-    examdir  = os.path.join(inprocess_dir,examdirname)
+    examdir     = os.path.join(output_dir,examdirname)
    
-    verbose("Considering exam {}, description: '{}' ...".format(examid, studydescr))
-    
     ###
     ## Copy dicoms from the scanner, and organize them into series folders
     ###
-    log("Pulling exam {} to {}".format(examid, examdir))
     tempdir = tempfile.mkdtemp()
     verbose("Fetching DICOMS into {0}".format(tempdir))
-    connection.move(scu.StudyQuery(StudyID = examid), tempdir)
+    connection.move(query, tempdir)
 
     # move dicom files into folders
     verbose("Sorting dicoms from {} into {}".format(tempdir, examdir))
@@ -391,39 +401,8 @@ def _pull_exam(connection, examinfo, inprocess_dir, pfile_dir):
     shutil.rmtree(tempdir)
 
     # fetch all non-dicom data for the exam
-    _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
-
-def pull_series(arguments): 
-    examid     = arguments['<exam>'][0]
-    seriesno   = arguments['<series>']
-    outputdir  = arguments['<outputdir>'] or '.'
-    pfile_dir  = arguments['--pfile-dir'] 
-    connection = _get_scanner_connection(arguments)
-
-    exams = connection.find(scu.StudyQuery(StudyID = examid))
-    if not exams: 
-        warn("Can't find exam {}".format(examid))
-        return
-    examinfo = exams[0]
-
-    seriesq = scu.SeriesQuery(StudyID = examid, SeriesNumber = seriesno)
-    series = connection.find(seriesq)
-
-    if not series: 
-        warn("Can't find series {} in exam {}".format(examid, seriesno))
-        return
-
-    examname = format_exam_name(examinfo)
-    examdir  = os.path.join(outputdir, examname)
-    if not os.path.exists(examdir): os.makedirs(examdir)
-
-    tempdir = tempfile.mkdtemp()
-    verbose("Fetching DICOMS into {0}".format(tempdir))
-    connection.move(seriesq, tempdir)
-    _sort_exam(tempdir, examdir)
-    shutil.rmtree(tempdir)
-
-    _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
+    if not bare:
+        _fetch_nondicom_exam_data(examdir, examid, pfile_dir)
 
 def _sort_exam(unsorteddir, sorteddir): 
     """ Internal function rename dicoms into series folders. """
@@ -545,7 +524,7 @@ def list_series(arguments):
     """
     List the series for an exam. 
     """
-    examid     = arguments['<exam>'][0]   
+    examid     = arguments['<exam>']
     connection = _get_scanner_connection(arguments)
     records    = connection.find(scu.SeriesQuery(StudyID = examid))
 
@@ -667,8 +646,10 @@ def sync(arguments):
     connection = _get_scanner_connection(arguments)
 
     for exam in  connection.find(scu.StudyQuery()):
-        if exam["StudyID"] in pulled: continue
-        _pull_exam(connection, exam, inprocess_dir, pfile_dir)
+        examid = exam["StudyID"]
+        if examid in pulled: continue
+        query = scu.StudyQuery(StudyID = examid)
+        _pull_exam(connection, exam, inprocess_dir, pfile_dir, query)
         log.write(exam['StudyID']+'\n')
 
 def _get_scanner_connection(arguments): 
@@ -744,10 +725,9 @@ def main():
 Finds and copies exam data into a well-organized folder structure.
 
 Usage: 
-    mritool [options] pull-exams <exam>... 
-    mritool [options] pull-series <exam> <series> [<outputdir>]
-    mritool [options] check <exam>...
-    mritool [options] complete <exam>...
+    mritool [options] pull <exam> [<series>] [-o <outputdir>] [--bare]
+    mritool [options] check <exam>
+    mritool [options] complete <exam>
     mritool [options] list-exams [-b <booking_code>] [-e <exam>] [-d <date>]
     mritool [options] list-series <exam>
     mritool [options] list-inprocess
@@ -755,19 +735,21 @@ Usage:
     mritool pfile-headers <pfile>
 
 Commands: 
-    pull-exams                Get an exam from the scanner
-    pull-series               Get a single series from the scanner
+    pull                      Get an exam from the scanner
+    check                     Check that an exam being processed has all of its files
+    complete                  Mark an exam as complete by moving it to the processed folder
     list-exams                List all exams on the scanner
     list-series               List all series for the exam on the scanner
     list-inprocess            List the exams in the inprocess area
-    check                     Check that an exam being processed has all of its files
-    complete                  Mark an exam as complete by moving it to the processed folder
     sync-exams                Pulls all unpulled exams into the processing folder
-
+    pfile-headers             Show the headers of a pfile
+ 
 Command options: 
     -b <bookingcode>          Booking code (StudyDescription)
     -d <date>                 Date (StudyDate)
     -e <exam>                 Exam number (StudyID)
+    -o <outputdir>            Output directory (overrides --inprocess-dir)
+    --bare                    Only pull dicom files
 
 Global options: 
     --inprocess-dir=<dir>     In-process exams directory [default: {defaults[inprocess]}]
@@ -787,20 +769,18 @@ Global options:
 
     VERBOSE = arguments['--verbose']
     
+    if arguments['pull']:
+        pull_exams(arguments)
+    if arguments['check']:
+        check_inprocess(arguments)
+    if arguments['complete']:
+        package_exams(arguments)
     if arguments['list-exams']:
         list_exams(arguments)
     if arguments['list-inprocess']:
         show_inprocess(arguments)
     if arguments['list-series']:
         list_series(arguments)
-    if arguments['pull-exams']:
-        pull_exams(arguments)
-    if arguments['pull-series']:
-        pull_series(arguments)
-    if arguments['complete']:
-        package_exams(arguments)
-    if arguments['check']:
-        check_inprocess(arguments)
     if arguments['sync-exams']:
         sync(arguments)
     if arguments['pfile-headers']:

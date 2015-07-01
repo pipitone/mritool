@@ -27,43 +27,47 @@ Basic usage
 The command line tool is `mritool`. Check the usage help via::
 
     $ mritool --help
-
+    
     Finds and copies exam data into a well-organized folder structure.
     
     Usage: 
-        mritool [options] pull-exams [to <outputdir>] <exam_number>...
-        mritool [options] pull-series [to <outputdir>] <exam_number> <series_number>
-        mritool [options] list-exams [<number>] 
-        mritool [options] list-series <exam_number>
-        mritool [options] list-staged
-        mritool [options] list-zipped 
-        mritool [options] check-staged <exam_number>...
-        mritool [options] zip <exam_number>...
-        mritool [options] rm <exam_number>...
+        mritool [options] pull <exam> [<series>] [-o <outputdir>] [--bare]
+        mritool [options] check <exam>
+        mritool [options] complete <exam>
+        mritool [options] list-exams [-b <booking_code>] [-e <exam>] [-d <date>]
+        mritool [options] list-series <exam>
+        mritool [options] list-inprocess
+        mritool [options] sync-exams
+        mritool pfile-headers <pfile>
     
     Commands: 
-        pull-exams                 Get an exam from the scanner
-        pull-series                Get a single series from the scanner
-        list-exams                 List all exams on the scanner
-        list-series                List all series for the exam on the scanner
-        list-staged                List the exams in the staging area
-        list-zipped                List the exams that have been zipped
-        check-staged               Check that a staged exam has all of its files
-        rm                         Remove exam data from the staging area
-        zip                        Zip up exam
+        pull                      Get an exam from the scanner
+        check                     Check that an exam being processed has all of its files
+        complete                  Mark an exam as complete by moving it to the processed folder
+        list-exams                List all exams on the scanner
+        list-series               List all series for the exam on the scanner
+        list-inprocess            List the exams in the inprocess area
+        sync-exams                Pulls all unpulled exams into the processing folder
+        pfile-headers             Show the headers of a pfile
+      
+    Command options: 
+        -b <bookingcode>          Booking code (StudyDescription)
+        -d <date>                 Date (StudyDate)
+        -e <exam>                 Exam number (StudyID)
+        -o <outputdir>            Output directory (overrides --inprocess-dir)
+        --bare                    Only pull dicom files
     
-    Options: 
-        --scans-dir=<dir>          Staging directory [default: ./output/processed]
-        --staging-dir=<dir>        Staging directory [default: ./output/staging]
-        --log-dir=<dir>            Logging directory [default: ./output/logs]
-        --pfile-dir=<dir>          Pfile directory [default: /mnt/mrraw/camh]
-        --host=<str>               Scanner hostname [default: CAMHMR]
-        --port=<num>               Scanner port [default: 4006]
-        --aet=<str>                Scanner AET [default: mr-srv1]
-        --aec=<str>                Calling machine AEC [default: CAMHMR]
-        -f, --force                Force a command, even if there are warnings.
-        -n, --dry-run              Do nothing, but show what would be done. 
-        -v, --verbose              Verbose messaging.
+    Global options: 
+        --inprocess-dir=<dir>     In-process exams directory [default: /data/mritooltest/InProcess]
+        --processed-dir=<dir>     Processed exams directory [default: /data/mritooltest/Processed]
+        --log-dir=<dir>           Logging directory [default: /data/mritooltest/logs]
+        --pfile-dir=<dir>         Pfile directory [default: /mnt/mrraw/camh]
+        --host=<str>              Scanner hostname [default: CAMHMR]
+        --port=<num>              Scanner port [default: 4006]
+        --aet=<str>               Scanner AET [default: mr-srv1]
+        --aec=<str>               Calling machine AEC [default: CAMHMR]
+        -f, --force               Force a command, even if there are warnings.
+        -v, --verbose             Verbose messaging.
 
 --------- 
 
