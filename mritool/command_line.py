@@ -4,6 +4,7 @@ import pfiles
 import scu
 from docopt import docopt
 import shutil
+import datetime
 import tabulate
 import tempfile
 import logging
@@ -647,6 +648,7 @@ def sync(arguments):
     tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
 
+    log("Starting sync: {}".format(datetime.datetime.now()))
     pulled  = []
     logfilepath = os.path.join(log_dir, 'exams.txt')
     if os.path.exists(logfilepath): 

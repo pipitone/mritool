@@ -5,7 +5,7 @@ _mritool()
     cur="${COMP_WORDS[COMP_CWORD]}"
 
     if [ $COMP_CWORD -eq 1 ]; then
-        COMPREPLY=( $( compgen -W ' pull sync-exams complete pfile-headers list-inprocess list-exams list-series check' -- $cur) )
+        COMPREPLY=( $( compgen -W ' pull sync-exams complete pfile-headers list-inprocess list-exams list-series check help' -- $cur) )
     else
         case ${COMP_WORDS[1]} in
             pull)
@@ -31,6 +31,9 @@ _mritool()
         ;;
             check)
             _mritool_check
+        ;;
+            help)
+            _mritool_help
         ;;
         esac
 
@@ -114,6 +117,16 @@ _mritool_check()
 
     if [ $COMP_CWORD -ge 2 ]; then
         COMPREPLY=( $( compgen -fW ' ' -- $cur) )
+    fi
+}
+
+_mritool_help()
+{
+    local cur
+    cur="${COMP_WORDS[COMP_CWORD]}"
+
+    if [ $COMP_CWORD -ge 2 ]; then
+        COMPREPLY=( $( compgen -W ' ' -- $cur) )
     fi
 }
 
