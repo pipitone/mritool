@@ -36,16 +36,16 @@ logging.basicConfig(
         )
 
 def fatal(message, exception = None): 
-    print "FATAL: {0}".format(message)
+    print >> sys.stderr, "FATAL: {0}".format(message)
     if exception: 
         print traceback.print_exc(exception)
     sys.exit(1)
 
 def warn(message): 
-    print "WARNING: {0}".format(message)
+    print >> sys.stderr, "WARNING: {0}".format(message)
 
 def debug(message):
-    if DEBUG: log(message)
+    if DEBUG: print >> sys.stderr, message
 
 def verbose(message):
     if DEBUG or VERBOSE: log(message)
@@ -391,11 +391,11 @@ def _pull_exam(connection, examinfo, output_dir, pfile_dir, query, bare=None):
     ## Copy dicoms from the scanner, and organize them into series folders
     ###
     tempdir = tempfile.mkdtemp()
-    verbose("Fetching DICOMS into {0}".format(tempdir))
+    debug("Fetching DICOMS into {0}".format(tempdir))
     connection.move(query, tempdir)
 
     # move dicom files into folders
-    verbose("Sorting dicoms from {} into {}".format(tempdir, examdir))
+    debug("Sorting dicoms from {} into {}".format(tempdir, examdir))
     if not os.path.exists(examdir): os.makedirs(examdir) 
     _sort_exam(tempdir, examdir)
     shutil.rmtree(tempdir)
@@ -735,6 +735,7 @@ Usage:
     mritool [options] list-inprocess
     mritool [options] sync-exams
     mritool pfile-headers <pfile>
+    mritool help 
 
 Commands: 
     pull                      Get an exam from the scanner
@@ -745,6 +746,7 @@ Commands:
     list-inprocess            List the exams in the inprocess area
     sync-exams                Pulls all unpulled exams into the processing folder
     pfile-headers             Show the headers of a pfile
+    help                      Display this help.
  
 Command options: 
     -b <bookingcode>          Booking code (StudyDescription)
@@ -788,6 +790,8 @@ Global options:
         sync(arguments)
     if arguments['pfile-headers']:
         pfile_headers(arguments['<pfile>'])
+    if arguments['help']: 
+        print options
     
 if __name__ == "__main__":
     main()
