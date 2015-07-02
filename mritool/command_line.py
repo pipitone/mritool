@@ -79,7 +79,7 @@ def format_exam_name(examinfo):
     if bookingcode.split(" ")[0].startswith("e+"):  
         ammendment   = bookingcode.split(" ")[0]
         bookingcode  = " ".join(bookingcode.split(" ")[1:])
-       
+
     return "{date}_Ex{examid}_{bookingcode}_{patientid}{ammendment}".format(
               date        = examinfo.get("StudyDate"),
               examid      = examinfo.get("StudyID"),
@@ -351,6 +351,7 @@ def pull_exams(arguments):
     examid        = arguments['<exam>']
     seriesno      = arguments['<series>']
     output_dir    = arguments['-o'] or arguments['--inprocess-dir']
+    tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
     bare          = arguments['--bare']
     connection    = _get_scanner_connection(arguments)
@@ -360,6 +361,11 @@ def pull_exams(arguments):
     if not examinfo: 
         warn("Exam {} not found on the scanner. Skipping.".format(examid))
         return 
+
+    if is_tech_exam(examinfo[0]) and not arguments['-o']: 
+        output_dir = tech_dir
+        debug("{} is a technologist exam. Using {} output folder.".format(
+            examid, output_dir))
 
     if seriesno: 
         query      = scu.SeriesQuery(StudyID = examid, SeriesNumber = seriesno)
@@ -637,7 +643,8 @@ def check_inprocess(arguments):
 def sync(arguments):
     """ Pulls all unpulled exams into the processing folder. """
     log_dir       = arguments['--log-dir'] 
-    inprocess_dir = arguments['--inprocess-dir']
+    output_dir    = arguments['--inprocess-dir']
+    tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
 
     pulled  = []
@@ -651,11 +658,29 @@ def sync(arguments):
     for exam in  connection.find(scu.StudyQuery()):
         examid = exam["StudyID"]
         if examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: continue
+
+        if is_tech_exam(exam): 
+            output_dir = tech_dir
+            debug("{} is a technologist exam. Using {} output folder.".format(
+                examid, output_dir))
         query = scu.StudyQuery(StudyID = examid)
+
         log("Pulling exam {}".format(examid))
-        _pull_exam(connection, exam, inprocess_dir, pfile_dir, query)
+        _pull_exam(connection, exam, output_dir, pfile_dir, query)
         logfile.write(exam['StudyID']+'\n')
 
+def is_tech_exam(exam): 
+    """
+    Determines whether the exam is a technologist exam. 
+
+    <exam> is a dictionary of dicom headers for the exam. 
+    """
+    # At the moment, we'll use the heuristic that if the study description
+    # doesn't end with MR or QA, it's a technologist exam. 
+    # See https://github.com/TIGRLab/mritool/issues/14
+    descr = exam["StudyDescription"]
+    return not (descr.endswith("MR") or descr.endswith("QA"))
+    
 def _get_scanner_connection(arguments): 
     host       = arguments['--host']
     port       = arguments['--port']
@@ -721,6 +746,7 @@ def main():
     defaults['raw']       = os.environ.get("MRITOOL_RAW_DIR"      ,"/mnt/mrraw/camh")
     defaults['inprocess'] = os.environ.get("MRITOOL_INPROCESS_DIR","/data/mritooltest/InProcess")
     defaults['processed'] = os.environ.get("MRITOOL_PROCESSED_DIR","/data/mritooltest/Processed")
+    defaults['tech']      = os.environ.get("MRITOOL_TECH_DIR"     ,"/data/mritooltest/TECH")
     defaults['logs']      = os.environ.get("MRITOOL_LOGS_DIR"     ,"/data/mritooltest/logs")
     defaults['host']      = os.environ.get("MRITOOL_HOST"         ,"CAMHMR")
     defaults['port']      = os.environ.get("MRITOOL_PORT"         ,"4006")
@@ -763,6 +789,7 @@ Global options:
     --processed-dir=<dir>     Processed exams directory [default: {defaults[processed]}]
     --log-dir=<dir>           Logging directory [default: {defaults[logs]}]
     --pfile-dir=<dir>         Pfile directory [default: {defaults[raw]}]
+    --tech-dir=<dir>          Technologist scans [default: {defaults[tech]}]
     --host=<str>              Scanner hostname [default: {defaults[host]}]
     --port=<num>              Scanner port [default: {defaults[port]}]
     --aet=<str>               Scanner AET [default: {defaults[aet]}]
