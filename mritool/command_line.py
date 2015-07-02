@@ -415,7 +415,7 @@ def _sort_exam(unsorteddir, sorteddir):
         debug("Moving {} to {}".format(source, dest))
         if not os.path.exists(os.path.dirname(dest)): 
             os.makedirs(os.path.dirname(dest))
-        shutil.move(source,dest)
+        shutil.copyfile(source,dest)
 
 def _fetch_nondicom_exam_data(examdir, examid, pfile_dir): 
     """ Find perhipheral data """
@@ -775,7 +775,7 @@ Global options:
     arguments = docopt(options)
 
     VERBOSE = arguments['--verbose']
-    DEbUG   = arguments['--debug']
+    DEBUG   = arguments['--debug']
     
     if arguments['pull']:
         pull_exams(arguments)
