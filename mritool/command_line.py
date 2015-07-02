@@ -21,6 +21,9 @@ from collections import defaultdict
 
 VERBOSE = False
 DEBUG   = False
+MIN_SERVICE_EXAM_NUM = 50000   # exam/StudyID greater than this are GE service
+                               # exams, and they should be ignored during sync.
+                               # See https://github.com/TIGRLab/mritool/issues/31
 DICOM_PRESSCI_KEY = 0x0019109e
 DICOM_PFILEID_KEY = 0x001910a2
 EXAMID_PADDING = 5      # Zero pad chars when formatting exam IDs
@@ -647,7 +650,7 @@ def sync(arguments):
 
     for exam in  connection.find(scu.StudyQuery()):
         examid = exam["StudyID"]
-        if examid in pulled: continue
+        if examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: continue
         query = scu.StudyQuery(StudyID = examid)
         log("Pulling exam {}".format(examid))
         _pull_exam(connection, exam, inprocess_dir, pfile_dir, query)
