@@ -5,7 +5,6 @@ for distribution to users. Specific features include:
  - Pulls down spectroscopy and fMRI spiral scans
  - Renames files and folders to follow a naming convention
  - Stages all files for a scan in a working directory for admin inspection
- - Zips all scan files and places in a exam-specific folder
 
 Installation
 ------------
@@ -70,6 +69,10 @@ The command line tool is `mritool`. Check the usage help via::
         -v, --verbose             Verbose messaging.
 
 --------- 
+
+Known Issues
+~~~~~~~~~~~~
+- ``mritool sync`` doesn't re-pull exams when they have been updated. See https://github.com/TIGRLab/mritool/issues/34. If ``sync`` has pulled an exam, and the exam is later updated, ``sync`` won't notice. You'll need to handle this situation by hand. 
 
 Some design notes
 -----------------
