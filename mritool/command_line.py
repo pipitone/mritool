@@ -644,7 +644,7 @@ def check_inprocess(arguments):
 def sync(arguments):
     """ Pulls all unpulled exams into the processing folder. """
     log_dir       = arguments['--log-dir'] 
-    output_dir    = arguments['--inprocess-dir']
+    inprocess_dir = arguments['--inprocess-dir']
     tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
 
@@ -661,6 +661,7 @@ def sync(arguments):
         examid = exam["StudyID"]
         if examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: continue
 
+        output_dir = inprocess_dir 
         if is_tech_exam(exam): 
             output_dir = tech_dir
             debug("{} is a technologist exam. Using {} output folder.".format(
