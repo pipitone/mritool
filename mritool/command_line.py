@@ -666,8 +666,7 @@ def sync(arguments):
             debug("{} is a technologist exam. Using {} output folder.".format(
                 examid, output_dir))
         query = scu.StudyQuery(StudyID = examid)
-
-        log("Pulling exam {}".format(examid))
+        log("Pulling exam {} to {}".format(examid, output_dir))
         _pull_exam(connection, exam, output_dir, pfile_dir, query)
         logfile.write(exam['StudyID']+'\n')
 
