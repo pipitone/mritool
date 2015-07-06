@@ -13,7 +13,7 @@ setup(name='mritool',
 		'tabulate',
 		'pydicom', 
 		'pfile_tools',
-        'infi.docopt-completion']
+        'infi.docopt-completion'], 
 	  test_suite = 'nose.collector', 
       tests_require=['nose'],	
 	  entry_points = {
