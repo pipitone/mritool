@@ -622,24 +622,24 @@ def check_inprocess(arguments):
     inprocess_dir = arguments['--inprocess-dir']
     pfile_dir     = arguments['--pfile-dir'] 
     log_dir       = arguments['--log-dir'] 
+    examid        = arguments['<exam>']
     connection    = _get_scanner_connection(arguments)
 
     inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
     inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
-    for examid in arguments['<exam>']: 
-        if examid not in inprocess_by_id: 
-            warn("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
-                examid, inprocess_dir))
-            continue
+    if examid not in inprocess_by_id:
+        warn("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
+            examid, inprocess_dir))
+        return
 
-        examinfo = inprocess_exams[inprocess_by_id[examid]]
-        examname = format_exam_name(examinfo)
-        examdir  = os.path.join(inprocess_dir, examname)
-        warnings = _check_inprocess(examid, examdir, connection)
+    examinfo = inprocess_exams[inprocess_by_id[examid]]
+    examname = format_exam_name(examinfo)
+    examdir  = os.path.join(inprocess_dir, examname)
+    warnings = _check_inprocess(examid, examdir, connection)
 
-        for warning in warnings: warn(warning)
-        if not warnings: print "All dicom files present for exam {}".format(examid)
+    for warning in warnings: warn(warning)
+    if not warnings: print "All dicom files present for exam {}".format(examid)
 
 def sync(arguments):
     """ Pulls all unpulled exams into the processing folder. """
