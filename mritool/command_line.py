@@ -76,16 +76,16 @@ def format_exam_name(examinfo):
     # Booking codes can appear with ammendment markers 'e+1' in their names
     # indicating that the scan was somehow modified.
     ammendment = "" 
-    bookingcode  = examinfo.get("StudyDescription","")    # by default this is the booking code
+    bookingcode  = examinfo.get("StudyDescription","UNKNOWN")    # by default this is the booking code
     if bookingcode.split(" ")[0].startswith("e+"):  
         ammendment   = bookingcode.split(" ")[0]
         bookingcode  = " ".join(bookingcode.split(" ")[1:])
 
     return "{date}_Ex{examid}_{bookingcode}_{patientid}{ammendment}".format(
-              date        = examinfo.get("StudyDate"),
+              date        = examinfo.get("StudyDate", "UNKNOWN"),
               examid      = examinfo.get("StudyID"),
               bookingcode = mangle(bookingcode),
-              patientid   = mangle(examinfo.get("PatientID","")), 
+              patientid   = mangle(examinfo.get("PatientID","UNKNOWN")), 
               ammendment  = re.sub(r'\W','', ammendment))
 
 def format_series_name(examid, series, seriesdescr):
@@ -289,7 +289,7 @@ def sort_exam(unsorteddir, sorteddir):
     for seq, filedata in dcm_dict.iteritems(): 
         _, ds = filedata[0]   # take the first in the series
         examid = ds.get("StudyID")
-        seriesdescr = ds.get("SeriesDescription","")
+        seriesdescr = ds.get("SeriesDescription","UNKNOWN")
         seriesname = format_series_name(examid, seq, seriesdescr)
         seriesdir  = os.path.join(sorteddir, seriesname)
 
@@ -388,7 +388,7 @@ def _pull_exam(connection, examinfo, output_dir, pfile_dir, query, bare=None):
     <examinfo> is dictionary of exam details.
     """
 
-    studydescr = examinfo.get("StudyDescription","")
+    studydescr = examinfo.get("StudyDescription","UNKNOWN")
     examid     = examinfo.get("StudyID")
 
     ###
@@ -587,7 +587,7 @@ def check_series_dicoms(examdir, examid, seriesinfo):
 
     for info in seriesinfo: 
         series      = info.get("SeriesNumber","")
-        seriesdescr = info.get("SeriesDescription","")
+        seriesdescr = info.get("SeriesDescription","UNKNOWN")
         numimages   = int(info.get("ImagesInAcquisition",0))
         seriesname  = format_series_name(examid, series, seriesdescr)
         seriesdir   = os.path.join(examdir, seriesname)
@@ -658,8 +658,9 @@ def sync(arguments):
     connection = _get_scanner_connection(arguments)
 
     for exam in  connection.find(scu.StudyQuery()):
-        examid = exam["StudyID"]
-        if examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: continue
+        examid = exam.get("StudyID","")
+        if not examid or examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: 
+            continue
 
         output_dir = inprocess_dir 
         if is_tech_exam(exam): 
@@ -680,7 +681,7 @@ def is_tech_exam(exam):
     # At the moment, we'll use the heuristic that if the study description
     # doesn't end with MR or QA, it's a technologist exam. 
     # See https://github.com/TIGRLab/mritool/issues/14
-    descr = exam["StudyDescription"]
+    descr = exam.get("StudyDescription","")
     return not (descr.endswith("MR") or descr.endswith("QA"))
     
 def _get_scanner_connection(arguments): 
