@@ -459,6 +459,7 @@ def package_exams(arguments):
     inprocess_dir = arguments['--inprocess-dir']
     pfile_dir     = arguments['--pfile-dir'] 
     log_dir       = arguments['--log-dir'] 
+    examid        = arguments['<exam>']
     connection    = _get_scanner_connection(arguments)
 
     if not os.path.exists(processed_dir): os.makedirs(processed_dir)
@@ -467,30 +468,29 @@ def package_exams(arguments):
     inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
     inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
-    for examid in arguments['<exam>']: 
-        if examid not in inprocess_by_id: 
-            fatal("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
-                examid, inprocess_dir))
-            continue
-        examdir  = inprocess_by_id[examid]
-        examstem = os.path.basename(examdir)
-        destdir  = os.path.join(processed_dir, examstem)
+    if examid not in inprocess_by_id: 
+        fatal("Unable to find exam {0} in the inprocess dir {1}. Skipping.".format(
+            examid, inprocess_dir))
+        return
+    examdir  = inprocess_by_id[examid]
+    examstem = os.path.basename(examdir)
+    destdir  = os.path.join(processed_dir, examstem)
 
-        warnings = _check_inprocess(examid, examdir, connection)
-        
-        if os.path.exists(destdir):
-            warn("{0} folder already exists. Skipping.".format(destdir))
-            continue
+    warnings = _check_inprocess(examid, examdir, connection)
+    
+    if os.path.exists(destdir):
+        warn("{0} folder already exists. Skipping.".format(destdir))
+        return
 
-        for warning in warnings: warn(warning)
+    for warning in warnings: warn(warning)
 
-        if warnings and not arguments['--force']: 
-            warn("Not packaging exam {} because of warnings. Use --force to do it anyway".format(
-                examid))
-            continue
+    if warnings and not arguments['--force']: 
+        warn("Not packaging exam {} because of warnings. Use --force to do it anyway".format(
+            examid))
+        return
 
-        log("Moving exam {0} to {1}".format(examid, destdir))
-        shutil.move(examdir, processed_dir)
+    log("Moving exam {0} to {1}".format(examid, destdir))
+    shutil.move(examdir, processed_dir)
             
 def list_exams(arguments): 
     processed_dir = arguments['--processed-dir']
