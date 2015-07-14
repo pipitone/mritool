@@ -266,7 +266,10 @@ def sort_exam(unsorteddir, sorteddir):
         [ (source, dest), ... ]
     """
 
+    moveoperations = [] 
+
     dcm_dict = {}  # seq -> [ (path, dcminfo)... ] 
+    i = 0   # default used when InstanceNumber isn't in the headers
     for dcm_file in glob.glob(os.path.join(unsorteddir,"*")):
         try: 
             if os.path.isdir(dcm_file): continue 
@@ -275,32 +278,25 @@ def sort_exam(unsorteddir, sorteddir):
             verbose("File {} is not a dicom. Skipping.".format(dcm_file))  
             continue  # just skip non-dicom files 
 
-        if "SeriesNumber" not in ds:
-            verbose("Dicom {} does not have a SeriesNumber. Skipping.".format(dcm_file))  
-            continue  # skip 
-        seq = str(ds.get("SeriesNumber"))
-        dcm_dict.setdefault(seq, []).append( (dcm_file,ds) )
+        # Series folder naming: Ex#####Se#####_SeriesDescription, eg.  Ex03806_Se00005_Sag_T1_BRAVO
+        # Dicom naming: Ex#####Se#####Im#####.dcm
 
+        examid      = str(ds.get("StudyID"))
+        seriesno    = str(ds.get("SeriesNumber", "UNKNOWN"))
+        seriesdescr = str(ds.get("SeriesDescription","UNKNOWN"))
+        seriesname  = format_series_name(examid, seriesno, seriesdescr)
+        instance    = str(ds.get("InstanceNumber",i))
+        del ds 
 
-    moveoperations = [] 
+        seriesdir   = os.path.join(sorteddir, seriesname)
+        dcmname     = "Ex{examid}Se{seriesno}Im{instance}.dcm".format(
+                      examid   = examid.zfill(EXAMID_PADDING),
+                      seriesno = seriesno.zfill(SERIESNUM_PADDING),
+                      instance = instance.zfill(INSTANCE_PADDING))
 
-    # Series folder naming: Ex#####Se#####_SeriesDescription, eg.  Ex03806_Se00005_Sag_T1_BRAVO
-    # Dicom naming: Ex#####Se#####Im#####.dcm
-    for seq, filedata in dcm_dict.iteritems(): 
-        _, ds = filedata[0]   # take the first in the series
-        examid = ds.get("StudyID")
-        seriesdescr = ds.get("SeriesDescription","UNKNOWN")
-        seriesname = format_series_name(examid, seq, seriesdescr)
-        seriesdir  = os.path.join(sorteddir, seriesname)
-
-        i = 0
-        for dcmpath, ds in filedata:
-            instance = str(ds.get("InstanceNumber",i))
-            dcmname = "Ex{examid}Se{series}Im{instance}.dcm".format(
-                        examid=examid.zfill(5),series=seq.zfill(5),instance=instance.zfill(5))
-            dest_path = os.path.join(seriesdir,dcmname)
-            moveoperations.append( (dcmpath, dest_path) )
-            i += 1
+        dest_path = os.path.join(seriesdir,dcmname)
+        moveoperations.append( (dcm_file, dest_path) )
+        i = i + 1
 
     return moveoperations
 
