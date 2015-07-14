@@ -802,6 +802,11 @@ Global options:
 
     VERBOSE = arguments['--verbose']
     DEBUG   = arguments['--debug']
+
+    if DEBUG: 
+        logging.getLogger().setLevel(logging.DEBUG)
+    if VERBOSE: 
+        logging.getLogger().setLevel(logging.INFO)
     
     if arguments['pull']:
         pull_exams(arguments)
