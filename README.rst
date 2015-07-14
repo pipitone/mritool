@@ -9,6 +9,11 @@ for distribution to users. Specific features include:
 Installation
 ------------
 
+Dependencies: 
+ - Python 2.x
+ - [dcmtk](http://dcmtk.org)
+
+
 I recommend using a conda environment to get set up::
 
     $ conda create -n mritool python
@@ -19,6 +24,8 @@ Then clone this repo and setup::
 	$ git clone git@github.com:TIGRLab/mritool.git
 	$ cd mritool
 	$ python setup.py install 
+
+The install command will install some python dependencies.
 
 Basic usage
 -----------
