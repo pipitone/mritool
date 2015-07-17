@@ -742,14 +742,14 @@ def main():
     global DEBUG
 
     defaults = UserDict.UserDict()
-    defaults['raw']       = os.environ.get("MRITOOL_RAW_DIR"      ,"/mnt/mrraw/camh")
-    defaults['inprocess'] = os.environ.get("MRITOOL_INPROCESS_DIR","/data/mritooltest/InProcess")
-    defaults['processed'] = os.environ.get("MRITOOL_PROCESSED_DIR","/data/mritooltest/Processed")
-    defaults['tech']      = os.environ.get("MRITOOL_TECH_DIR"     ,"/data/mritooltest/TECH")
-    defaults['logs']      = os.environ.get("MRITOOL_LOGS_DIR"     ,"/data/mritooltest/logs")
+    defaults['raw']       = os.environ.get("MRITOOL_RAW_DIR"      ,"./input/scanner")
+    defaults['inprocess'] = os.environ.get("MRITOOL_INPROCESS_DIR","./output/inprocess")
+    defaults['processed'] = os.environ.get("MRITOOL_PROCESSED_DIR","./output/processed")
+    defaults['tech']      = os.environ.get("MRITOOL_TECH_DIR"     ,"./output/tech")
+    defaults['logs']      = os.environ.get("MRITOOL_LOGS_DIR"     ,"./output/logs")
     defaults['host']      = os.environ.get("MRITOOL_HOST"         ,"CAMHMR")
     defaults['port']      = os.environ.get("MRITOOL_PORT"         ,"4006")
-    defaults['aet']       = os.environ.get("MRITOOL_AET"          ,"mr-srv1")
+    defaults['aet']       = os.environ.get("MRITOOL_AET"          ,"mrsrv1")
     defaults['aec']       = os.environ.get("MRITOOL_AEC"          ,"CAMHMR")
     options = """ 
 Finds and copies exam data into a well-organized folder structure.
