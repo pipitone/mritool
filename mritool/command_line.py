@@ -341,6 +341,22 @@ def check_exam_for_pfiles(dcm_info):
 
     return missing_pfiles, nonmatching_pfiles
 
+def get_output_dir(examinfo, output_dir, tech_dir): 
+    """
+    Determine the proper output directory for the exam. 
+
+    <exam> is a dictionary of dicom headers for the exam. 
+    """
+
+    # At the moment, we'll use the heuristic that if the study description
+    # doesn't end with MR or QA, it's a technologist exam. 
+    # See https://github.com/TIGRLab/mritool/issues/14
+    descr = examinfo.get("StudyDescription","")
+    if not (descr.endswith("MR") or descr.endswith("QA")):
+        return tech_dir
+
+    return output_dir
+
 ####
 # Command line operations 
 ###########################################
@@ -362,10 +378,8 @@ def pull_exams(arguments):
         warn("Exam {} not found on the scanner. Skipping.".format(examid))
         return 
 
-    if is_tech_exam(examinfo[0]) and not arguments['-o']: 
-        output_dir = tech_dir
-        debug("{} is a technologist exam. Using {} output folder.".format(
-            examid, output_dir))
+    output_dir = get_output_dir(examinfo[0], output_dir, tech_dir)
+    debug("Using {} output folder.".format(examid, output_dir))
 
     if not os.access(output_dir, os.W_OK): 
         fatal("No write access to output folder {}. Exiting.".format(output_dir))
@@ -669,27 +683,13 @@ def sync(arguments):
         if not examid or examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: 
             continue
 
-        output_dir = inprocess_dir 
-        if is_tech_exam(exam): 
-            output_dir = tech_dir
-            debug("{} is a technologist exam. Using {} output folder.".format(
-                examid, output_dir))
+        output_dir = get_output_dir(exam, inprocess_dir, tech_dir)
+        debug("Using {} output folder.".format(examid, output_dir))
+
         query = scu.StudyQuery(StudyID = examid)
         log("Pulling exam {} to {}".format(examid, output_dir))
         _pull_exam(connection, exam, output_dir, pfile_dir, query)
         logfile.write(exam['StudyID']+'\n')
-
-def is_tech_exam(exam): 
-    """
-    Determines whether the exam is a technologist exam. 
-
-    <exam> is a dictionary of dicom headers for the exam. 
-    """
-    # At the moment, we'll use the heuristic that if the study description
-    # doesn't end with MR or QA, it's a technologist exam. 
-    # See https://github.com/TIGRLab/mritool/issues/14
-    descr = exam.get("StudyDescription","")
-    return not (descr.endswith("MR") or descr.endswith("QA"))
     
 def _get_scanner_connection(arguments): 
     host       = arguments['--host']
