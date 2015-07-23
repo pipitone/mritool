@@ -365,6 +365,9 @@ def pull_exams(arguments):
         debug("{} is a technologist exam. Using {} output folder.".format(
             examid, output_dir))
 
+    if not os.access(output_dir, os.W_OK): 
+        fatal("No write access to output folder {}. Exiting.".format(output_dir))
+        
     if seriesno: 
         query      = scu.SeriesQuery(StudyID = examid, SeriesNumber = seriesno)
         seriesinfo = connection.find(query)
