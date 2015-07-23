@@ -83,7 +83,7 @@ def format_exam_name(examinfo):
 
     return "{date}_Ex{examid}_{bookingcode}_{patientid}{ammendment}".format(
               date        = examinfo.get("StudyDate", "UNKNOWN"),
-              examid      = examinfo.get("StudyID"),
+              examid      = examinfo.get("StudyID").zfill(EXAMID_PADDING),
               bookingcode = mangle(bookingcode),
               patientid   = mangle(examinfo.get("PatientID","UNKNOWN")), 
               ammendment  = re.sub(r'\W','', ammendment))
