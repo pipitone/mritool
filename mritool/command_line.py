@@ -141,11 +141,12 @@ def index_dicoms(path, recurse = True, maxdepth = -1, complete = False):
 
     if recurse and (maxdepth < 0 or maxdepth > 0): 
         for subdir in listdir_fullpath(path):
-            if not os.path.isdir(filepath): continue
+            if not os.path.isdir(subdir): continue
             manifest.update(index_dicoms(subdir, 
                 recurse = recurse, 
                 maxdepth = maxdepth - 1, 
                 complete = complete))
+            if not complete and manifest: break 
     return manifest
 
 def index_exams(paths):
@@ -160,7 +161,7 @@ def index_exams(paths):
     """
     manifest = {} 
     for examdir in paths: 
-        dcm_info = index_dicoms(examdir)
+        dcm_info = index_dicoms(examdir, maxdepth=1)
         if not dcm_info: continue
         manifest[examdir] = dcm_info.values()[0]
     return manifest 
