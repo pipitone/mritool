@@ -20,6 +20,6 @@ setup(name='mritool',
 		'console_scripts' : [ 'mritool = mritool.command_line:main' ],
 	  },
 	  data_files = [ 
-		('/etc/bash_completion.d/mritool.sh', ['autocomplete.sh']), 
+		('/etc/bash_completion.d/', ['mritool-autocomplete.sh']), 
 	  ],
       zip_safe=False)
