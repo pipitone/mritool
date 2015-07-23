@@ -49,9 +49,10 @@ class SCU(object):
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
-        except Exception as ex:
+        except subprocess.CalledProcessError as ex:
             log.debug(ex)
             output and log.debug(output)
+            raise ex
         if output and re.search('DIMSE Status .* Success', output):
             return [Response(query.kwargs.keys(), match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
         else:
@@ -66,9 +67,10 @@ class SCU(object):
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
-        except Exception as ex:
+        except subprocess.CalledProcessError as ex:
             log.debug(ex)
             output and log.debug(output)
+            raise ex
         try:
             img_cnt = int(MOVE_OUTPUT_RE.match(output).group(1))
         except (ValueError, AttributeError):

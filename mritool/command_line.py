@@ -18,6 +18,7 @@ import sys
 import UserDict
 import re
 import traceback 
+import subprocess
 from collections import defaultdict
 
 VERBOSE = False
@@ -356,6 +357,7 @@ def pull_exams(arguments):
 
     query    = scu.StudyQuery(StudyID = examid)
     examinfo = connection.find(query)
+
     if not examinfo: 
         warn("Exam {} not found on the scanner. Skipping.".format(examid))
         return 
@@ -402,7 +404,12 @@ def _pull_exam(connection, examinfo, output_dir, pfile_dir, query, bare=None):
     ###
     tempdir = tempfile.mkdtemp()
     debug("Fetching DICOMS into {0}".format(tempdir))
-    connection.move(query, tempdir)
+
+    try:
+        connection.move(query, tempdir)
+    except subprocess.CalledProcessError as ex: 
+        log("Dicom transfer failed: {}".format(ex.output))
+        return 
 
     # move dicom files into folders
     debug("Sorting dicoms from {} into {}".format(tempdir, examdir))
