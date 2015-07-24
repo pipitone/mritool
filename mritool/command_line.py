@@ -378,7 +378,9 @@ def pull_exams(arguments):
         warn("Exam {} not found on the scanner. Skipping.".format(examid))
         return 
 
-    output_dir = get_output_dir(examinfo[0], output_dir, tech_dir)
+    if not arguments['-o']:
+        output_dir = get_output_dir(examinfo[0], output_dir, tech_dir)
+
     debug("Using {} output folder.".format(examid, output_dir))
 
     if not os.access(output_dir, os.W_OK): 
