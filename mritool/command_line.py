@@ -19,6 +19,7 @@ import UserDict
 import re
 import traceback 
 import subprocess
+import shlex
 from collections import defaultdict
 
 VERBOSE = False
@@ -526,6 +527,15 @@ def package_exams(arguments):
 
     log("Moving exam {0} to {1}".format(examid, destdir))
     shutil.move(examdir, processed_dir)
+
+    verbose("Setting read-only permissions on {0}".format(destdir))
+    try:
+        output = subprocess.check_output(
+            shlex.split('chmod -R -w "{}"'.format(destdir)))
+    except subprocess.CalledProcessError as ex:
+        fatal("Error setting read-only permissions on completed scan.\n{}\n".format(
+            output))
+
             
 def list_exams(arguments): 
     processed_dir = arguments['--processed-dir']
