@@ -35,28 +35,26 @@ INSTANCE_PADDING = 5    # Zero pad chars when formatting dicom instance numbers
 ####
 #  Logging
 ###########################################
-logging.basicConfig(
-        format='%(asctime)s %(name)16.16s:%(levelname)4.4s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        )
+logging.basicConfig(format='%(message)s')
+logger = logging.getLogger('mritool')
 
 def fatal(message, exception = None): 
-    print >> sys.stderr, "FATAL: {0}".format(message)
+    logger.critical("FATAL: {}".format(message))
     if exception: 
-        print traceback.print_exc(exception)
+        logging.critical(traceback.print_exc(exception))
     sys.exit(1)
 
 def warn(message): 
-    print >> sys.stderr, "WARNING: {0}".format(message)
+    logger.warning("WARNING: {0}".format(message))
 
 def debug(message):
-    if DEBUG: print >> sys.stderr, message
+    logger.debug(message)
 
 def verbose(message):
     if DEBUG or VERBOSE: log(message)
 
 def log(message): 
-    print "{0}".format(message)
+    logger.info(message)
 
 ####
 #  Formatting functions
@@ -558,9 +556,7 @@ def list_exams(arguments):
     # sort, de-dictionary and print
     table  = sorted(table, key=lambda row: int(row['StudyID']))
     table  = [ [r[h] for h in headers]  for r in table ]
-    print
-    print tabulate.tabulate(table, headers=headers )
-    print
+    log("\n{}\n".format(tabulate.tabulate(table, headers=headers)))
 
 def list_series(arguments):
     """
@@ -574,9 +570,7 @@ def list_series(arguments):
     table = [ [ r.get(key,"") for key in headers ] for r in records ]
     table = sorted(table, key=lambda row: int(row[0]))
 
-    print
-    print tabulate.tabulate(table, headers=headers)
-    print
+    log("\n{}\n".format(tabulate.tabulate(table, headers=headers)))
 
 def show_inprocess(arguments): 
     """
@@ -599,9 +593,7 @@ def show_inprocess(arguments):
         table.append(row)         
 
     table = sorted(table, key=lambda row: int(row[1]))   #  sort by study id 
-    print
-    print tabulate.tabulate(table, headers=headers )
-    print
+    log("\n{}\n".format(tabulate.tabulate(table, headers=headers)))
 
 def check_series_dicoms(examdir, examid, seriesinfo):
     """
@@ -671,7 +663,7 @@ def check_inprocess(arguments):
     warnings = _check_inprocess(examid, examdir, connection)
 
     for warning in warnings: warn(warning)
-    if not warnings: print "All dicom files present for exam {}".format(examid)
+    if not warnings: log("All dicom files present for exam {}".format(examid))
 
 def sync(arguments):
     """ Pulls all unpulled exams into the processing folder. """
@@ -680,6 +672,13 @@ def sync(arguments):
     tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
 
+    # attach sync.log handler
+    logfile = os.path.join(log_dir, 'sync.log')
+    fh = logging.FileHandler(logfile)
+    fh.setLevel(logging.INFO)
+    logging.getLogger().addHandler(fh)
+
+    # begin
     log("Starting sync: {}".format(datetime.datetime.now()))
     pulled  = []
     logfilepath = os.path.join(log_dir, 'exams.txt')
@@ -825,10 +824,10 @@ Global options:
     VERBOSE = arguments['--verbose']
     DEBUG   = arguments['--debug']
 
+    logger.setLevel(logging.INFO)
+
     if DEBUG: 
-        logging.getLogger().setLevel(logging.DEBUG)
-    if VERBOSE: 
-        logging.getLogger().setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
     
     if arguments['pull']:
         pull_exams(arguments)
