@@ -252,6 +252,15 @@ def find_pfiles(pfile_dir, examdir, examid):
             continue 
 
         ###
+        ## dailyqc files
+        ###
+        elif kind == "dailyqc":
+            seriesnum   = pfile_headers["series_number"]
+            dest_name   = format_series_name(examid, n,"") + os.path.basename(pfile_path)
+            dest        = os.path.join(examdir, dest_name)
+            files.append((pfile_path, dest))
+            
+        ###
         ## Unknown Pfiles
         ###
         else: 

@@ -30,8 +30,15 @@ def guess_pfile_kind(path, headers):
     #
     # 4. Raw spiral files
     #   - They are stored in a folder named rawSprlioPfiles
-    series_description = headers["series_description"]
-    foldername = os.path.basename(os.path.dirname(path))
+    # 
+    # 5. DailyQC files
+    #   - exam_description=='DailyQC' or protocol=='---QC_08chHeadcoil_QC----'
+    #   - see https://github.com/TIGRLab/mritool/issues/44 
+    #
+    series_description = headers.get("series_description", "")
+    exam_description   = headers.get("exam_description", "")
+    protocol           = headers.get("---QC_08chHeadcoil_QC----", "")
+    foldername         = os.path.basename(os.path.dirname(path))
 
     if series_description.startswith("MRS"): 
         return "spectroscopy"
@@ -41,6 +48,8 @@ def guess_pfile_kind(path, headers):
         return "fmri"
     elif foldername.startswith("rawSprlioPfiles"):
         return "raw"
+    elif exam_description == 'DailyQC' or protocol == '---QC_08chHeadcoil_QC----':
+        return "dailyqc"
     else: 
         return "unknown"
 
