@@ -348,7 +348,7 @@ def check_exam_for_pfiles(dcm_info):
 
     return missing_pfiles, nonmatching_pfiles
 
-def get_output_dir(examinfo, output_dir, tech_dir): 
+def get_output_dir(examinfo, output_dir, tech_dir, dailyqc_dir): 
     """
     Determine the proper output directory for the exam. 
 
@@ -359,6 +359,10 @@ def get_output_dir(examinfo, output_dir, tech_dir):
     # doesn't end with MR or QA, it's a technologist exam. 
     # See https://github.com/TIGRLab/mritool/issues/14
     descr = examinfo.get("StudyDescription","")
+
+    if descr == 'DailyQC': 
+        return dailyqc_dir
+
     if not (descr.endswith("MR") or descr.endswith("QA")):
         return tech_dir
 
@@ -375,6 +379,7 @@ def pull_exams(arguments):
     output_dir    = arguments['-o'] or arguments['--inprocess-dir']
     tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
+    dailyqc_dir   = arguments['--dailyqc-dir']
     bare          = arguments['--bare']
     connection    = _get_scanner_connection(arguments)
 
@@ -386,7 +391,7 @@ def pull_exams(arguments):
         return 
 
     if not arguments['-o']:
-        output_dir = get_output_dir(examinfo[0], output_dir, tech_dir)
+        output_dir = get_output_dir(examinfo[0], output_dir, tech_dir, dailyqc_dir)
 
     debug("Using {} output folder.".format(examid, output_dir))
 
@@ -670,6 +675,7 @@ def sync(arguments):
     log_dir       = arguments['--log-dir'] 
     inprocess_dir = arguments['--inprocess-dir']
     tech_dir      = arguments['--tech-dir']
+    dailyqc_dir   = arguments['--dailyqc-dir']
     pfile_dir     = arguments['--pfile-dir'] 
 
     # attach sync.log handler
@@ -693,7 +699,7 @@ def sync(arguments):
         if not examid or examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: 
             continue
 
-        output_dir = get_output_dir(exam, inprocess_dir, tech_dir)
+        output_dir = get_output_dir(exam, inprocess_dir, tech_dir, dailyqc_dir)
         debug("Using {} output folder.".format(examid, output_dir))
 
         query = scu.StudyQuery(StudyID = examid)
@@ -767,6 +773,7 @@ def main():
     defaults['inprocess'] = os.environ.get("MRITOOL_INPROCESS_DIR","./output/inprocess")
     defaults['processed'] = os.environ.get("MRITOOL_PROCESSED_DIR","./output/processed")
     defaults['tech']      = os.environ.get("MRITOOL_TECH_DIR"     ,"./output/tech")
+    defaults['dailyqc']   = os.environ.get("MRITOOL_DAILYQC_DIR"  ,"./output/DailyQC")
     defaults['logs']      = os.environ.get("MRITOOL_LOGS_DIR"     ,"./output/logs")
     defaults['host']      = os.environ.get("MRITOOL_HOST"         ,"CAMHMR")
     defaults['port']      = os.environ.get("MRITOOL_PORT"         ,"4006")
@@ -810,6 +817,7 @@ Global options:
     --log-dir=<dir>           Logging directory [default: {defaults[logs]}]
     --pfile-dir=<dir>         Pfile directory [default: {defaults[raw]}]
     --tech-dir=<dir>          Technologist scans [default: {defaults[tech]}]
+    --dailyqc-dir=<dir>       DailyQC scans [default: {defaults[dailyqc]}]
     --host=<str>              Scanner hostname [default: {defaults[host]}]
     --port=<num>              Scanner port [default: {defaults[port]}]
     --aet=<str>               Scanner AET [default: {defaults[aet]}]
