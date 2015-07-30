@@ -161,6 +161,7 @@ def index_exams(paths):
     """
     manifest = {} 
     for examdir in paths: 
+        if not os.path.isdir(examdir): continue
         dcm_info = index_dicoms(examdir, maxdepth=1)
         if not dcm_info: continue
         manifest[examdir] = dcm_info.values()[0]
