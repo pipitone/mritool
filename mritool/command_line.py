@@ -501,7 +501,7 @@ def package_exams(arguments):
     if not os.path.exists(processed_dir): os.makedirs(processed_dir)
 
     # look in inprocess for <bookingcode>/.*E<examid>_.* folders
-    inprocess_exams = index_exams(filter(os.path.isdir,listdir_fullpath(inprocess_dir)))
+    inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
     inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
     if examid not in inprocess_by_id: 
@@ -601,8 +601,7 @@ def show_inprocess(arguments):
     headers = ["Path"] + dicom_headers
     table = [] 
 
-    examdata = index_exams(filter(os.path.isdir,listdir_fullpath(inprocess_dir)))
-    for examdir, ds in examdata.iteritems(): 
+    for examdir, ds in index_exams(listdir_fullpath(inprocess_dir)).iteritems(): 
         row = [examdir]    # Path
         for header in dicom_headers:
             row.append(ds.get(header,""))
@@ -665,7 +664,7 @@ def check_inprocess(arguments):
     examid        = arguments['<exam>']
     connection    = _get_scanner_connection(arguments)
 
-    inprocess_exams = index_exams(filter(os.path.isdir,listdir_fullpath(inprocess_dir)))
+    inprocess_exams = index_exams(listdir_fullpath(inprocess_dir))
     inprocess_by_id = { ds.get("StudyID") : path for path, ds in inprocess_exams.iteritems() } 
 
     if examid not in inprocess_by_id:
