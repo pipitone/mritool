@@ -535,7 +535,7 @@ def package_exams(arguments):
     verbose("Setting read-only permissions on {0}".format(destdir))
     try:
         output = subprocess.check_output(
-            shlex.split('chmod -R -w "{}"'.format(destdir)))
+            shlex.split('chmod -R ugo-w "{}"'.format(destdir)))
     except subprocess.CalledProcessError as ex:
         fatal("Error setting read-only permissions on completed scan.\n{}\n".format(
             ex.output))
