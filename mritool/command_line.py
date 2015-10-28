@@ -171,7 +171,7 @@ def find_pfiles(pfile_dir, examdir, examid):
     """
     Finds pfiles that belong as part of an exam. 
 
-    Returns a list of tuples (source, dest) listening files to copy and their
+    Returns a list of tuples (source, dest), listing files to copy and their
     destination in the examdir. 
     """
 
@@ -183,6 +183,9 @@ def find_pfiles(pfile_dir, examdir, examid):
         # skip irrelvant pfiles
         if str(pfile_headers['exam_number']) != examid: continue
         if ".bak" in pfile_path: continue 
+        if not os.path.basename(os.path.dirname(pfile_path)).startswith("Pfiles_"): 
+            # pfiles not in Pfiles_*/ are likely not sorted correctly
+            continue
 
         # Use a Heuristic to decide what to do with the pfiles found.
         kind = pfiles.guess_pfile_kind(pfile_path, pfile_headers)
