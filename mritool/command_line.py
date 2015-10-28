@@ -538,7 +538,7 @@ def package_exams(arguments):
             shlex.split('chmod -R -w "{}"'.format(destdir)))
     except subprocess.CalledProcessError as ex:
         fatal("Error setting read-only permissions on completed scan.\n{}\n".format(
-            output))
+            ex.output))
 
             
 def list_exams(arguments): 
