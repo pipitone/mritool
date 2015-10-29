@@ -183,7 +183,7 @@ def find_pfiles(pfile_dir, examdir, examid):
         # skip irrelvant pfiles
         if str(pfile_headers['exam_number']) != examid: continue
         if ".bak" in pfile_path: continue 
-        if not os.path.basename(os.path.dirname(pfile_path)).startswith("Pfiles_"): 
+        if "Pfiles_" not in pfile_path: 
             # pfiles not in Pfiles_*/ are likely not sorted correctly
             continue
 
