@@ -686,6 +686,7 @@ def check_inprocess(arguments):
 
 def sync(arguments):
     """ Pulls all unpulled exams into the processing folder. """
+    req_examid    = arguments['-e']
     log_dir       = arguments['--log-dir'] 
     inprocess_dir = arguments['--inprocess-dir']
     tech_dir      = arguments['--tech-dir']
@@ -700,6 +701,10 @@ def sync(arguments):
 
     # begin
     log("Starting sync: {}".format(datetime.datetime.now()))
+
+    if req_examid: 
+        log("Exam ID {} requested for sync".format(req_examid))
+
     pulled  = []
     logfilepath = os.path.join(log_dir, 'exams.txt')
     if os.path.exists(logfilepath): 
@@ -710,11 +715,16 @@ def sync(arguments):
 
     for exam in  connection.find(scu.StudyQuery()):
         examid = exam.get("StudyID","")
+
         if not examid or examid in pulled or int(examid) > MIN_SERVICE_EXAM_NUM: 
             continue
 
+        # skip exam if it isn't the one requested
+        if req_examid and examid != req_examid:
+            continue
+
         output_dir = get_output_dir(exam, inprocess_dir, tech_dir, dailyqc_dir)
-        debug("Using {} output folder.".format(examid, output_dir))
+        debug("Using {} output folder.".format(output_dir))
 
         query = scu.StudyQuery(StudyID = examid)
         log("Pulling exam {} to {}".format(examid, output_dir))
@@ -803,7 +813,7 @@ Usage:
     mritool [options] list-exams [-b <booking_code>] [-e <exam>] [-d <date>]
     mritool [options] list-series <exam>
     mritool [options] list-inprocess
-    mritool [options] sync-exams
+    mritool [options] sync-exams [-e <exam>]
     mritool pfile-headers <pfile>
     mritool help 
 
