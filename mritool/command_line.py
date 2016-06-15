@@ -181,94 +181,26 @@ def find_pfiles(pfile_dir, examdir, examid):
     for pfile_path, pfile_headers in pfiles_headers.iteritems():
 
         # skip irrelvant pfiles
-        if str(pfile_headers['exam_number']) != examid: continue
-        if ".bak" in pfile_path: continue 
-        if "Pfiles_" not in pfile_path: 
-            # pfiles not in Pfiles_*/ are likely not sorted correctly
+        if str(pfile_headers['exam_number']) != examid: 
+		continue
+
+        # Copy the single pfile to the series folder in inprocess
+        # and name the file: Ex#####_Se######_P#####.7
+        n     = pfile_headers["series_number"]
+        prefix = format_series_name(examid, n, "")
+
+        series_dirs = filter(lambda x: x.startswith(prefix), os.listdir(examdir)) 
+
+        if len(series_dirs) != 1: 
+            warn("Couldn't find folder for series {0} in exam dir {1} "
+                 "for pfile {2}. Skipping.".format(n,examdir,pfile_path))
             continue
 
-        # Use a Heuristic to decide what to do with the pfiles found.
-        kind = pfiles.guess_pfile_kind(pfile_path, pfile_headers)
-
-        ###
-        ## Spectroscopy PFiles
-        ###
-        if kind == "spectroscopy":   
-            # Copy the single pfile to the series folder in inprocess
-            # and name the file: Ex#####_Se######_P#####.7
-            n     = pfile_headers["series_number"]
-            prefix = format_series_name(examid, n, "")
-
-            series_dirs = filter(lambda x: x.startswith(prefix), os.listdir(examdir)) 
-
-            if len(series_dirs) != 1: 
-                warn("Couldn't find folder for series {0} in exam dir {1} "
-                     "for pfile {2}. Skipping.".format(n,examdir,pfile_path))
-                continue
-
-            verbose("Found pfile {0} for series {1}".format(pfile_path, n))
-            series_dir = os.path.join(examdir,series_dirs[0])
-            dest_name  = format_series_name(examid, n,"") + os.path.basename(pfile_path)
-            dest       = os.path.join(series_dir, dest_name)
-            files.append((pfile_path, dest))
-
-        ###
-        ## fMRI PFiles
-        ###
-        elif kind == "fmri":
-            # Copy the parent folder, and all it contains, to exam in inprocess
-            # Name the series folder: Ex#####_Se######_Description
-            # Name each of the files: Ex#####_Se######_<originalfilename>
-            # Except for sprl.nii: Ex#####_Se######_<pfilename>.nii
-
-            seriesnum   = pfile_headers["series_number"]
-            seriesdescr = pfile_headers["series_description"]
-            seriesname = format_series_name(examid, seriesnum, seriesdescr)
-            
-            pfile_name = os.path.basename(pfile_path).replace(".7","").replace(".hdr","")
-            pfile_dir  = os.path.dirname(pfile_path)
-            series_dir = os.path.join(examdir, seriesname)
-            
-            for sprlfile in os.listdir(pfile_dir): 
-                dest_name = format_series_name(examid, seriesnum, "") + sprlfile
-                if sprlfile == 'sprl.nii':
-                    dest_name = format_series_name(examid, seriesnum, "") + pfile_name + ".nii"
-
-                source = os.path.join(pfile_dir, sprlfile)
-                dest   = os.path.join(series_dir, dest_name)      
-                files.append( (source, dest) )
-
-        ###
-        ## HOS or "raw" PFiles
-        ###
-        elif kind == "hos" or kind == "raw": 
-            # 3. HOS
-            #   - The series_description is "HOS"
-            #   - Action: Ignore
-            #
-            # 4. Raw spiral files
-            #   - They are stored in a folder named rawSprlioPfiles
-            #   - Action: Move to a raw spiral backup directory
-            verbose(
-                "Ignoring pfile {0} because it is type == {1}".format(
-                pfile_path, kind))
-            continue 
-
-        ###
-        ## dailyqc files
-        ###
-        elif kind == "dailyqc":
-            seriesnum   = pfile_headers["series_number"]
-            dest_name   = format_series_name(examid, seriesnum,"") + os.path.basename(pfile_path)
-            dest        = os.path.join(examdir, dest_name)
-            files.append((pfile_path, dest))
-            
-        ###
-        ## Unknown Pfiles
-        ###
-        else: 
-            warn("Unknown pfile kind {}: description = {}.".format(pfile_path,
-                pfile_headers["series_description"]))
+        verbose("Found pfile {0} for series {1}".format(pfile_path, n))
+        series_dir = os.path.join(examdir,series_dirs[0])
+        dest_name  = format_series_name(examid, n,"") + os.path.basename(pfile_path)
+        dest       = os.path.join(series_dir, dest_name)
+        files.append((pfile_path, dest))
 
     return files 
 
@@ -353,26 +285,6 @@ def check_exam_for_pfiles(dcm_info):
 
     return missing_pfiles, nonmatching_pfiles
 
-def get_output_dir(examinfo, output_dir, tech_dir, dailyqc_dir): 
-    """
-    Determine the proper output directory for the exam. 
-
-    <exam> is a dictionary of dicom headers for the exam. 
-    """
-
-    # At the moment, we'll use the heuristic that if the study description
-    # doesn't end with MR or QA, it's a technologist exam. 
-    # See https://github.com/TIGRLab/mritool/issues/14
-    descr = examinfo.get("StudyDescription","")
-
-    if descr == 'DailyQC': 
-        return dailyqc_dir
-
-    if not (descr.endswith("MR") or descr.endswith("QA")):
-        return tech_dir
-
-    return output_dir
-
 ####
 # Command line operations 
 ###########################################
@@ -382,9 +294,7 @@ def pull_exams(arguments):
     examid        = arguments['<exam>']
     seriesno      = arguments['<series>']
     output_dir    = arguments['-o'] or arguments['--inprocess-dir']
-    tech_dir      = arguments['--tech-dir']
     pfile_dir     = arguments['--pfile-dir'] 
-    dailyqc_dir   = arguments['--dailyqc-dir']
     bare          = arguments['--bare']
     connection    = _get_scanner_connection(arguments)
 
@@ -394,9 +304,6 @@ def pull_exams(arguments):
     if not examinfo: 
         warn("Exam {} not found on the scanner. Skipping.".format(examid))
         return 
-
-    if not arguments['-o']:
-        output_dir = get_output_dir(examinfo[0], output_dir, tech_dir, dailyqc_dir)
 
     debug("Using {} output folder.".format(examid, output_dir))
 
@@ -688,9 +595,7 @@ def sync(arguments):
     """ Pulls all unpulled exams into the processing folder. """
     req_examid    = arguments['-e']
     log_dir       = arguments['--log-dir'] 
-    inprocess_dir = arguments['--inprocess-dir']
-    tech_dir      = arguments['--tech-dir']
-    dailyqc_dir   = arguments['--dailyqc-dir']
+    output_dir    = arguments['--inprocess-dir']
     pfile_dir     = arguments['--pfile-dir'] 
 
     # attach sync.log handler
@@ -723,7 +628,6 @@ def sync(arguments):
         if req_examid and examid != req_examid:
             continue
 
-        output_dir = get_output_dir(exam, inprocess_dir, tech_dir, dailyqc_dir)
         debug("Using {} output folder.".format(output_dir))
 
         query = scu.StudyQuery(StudyID = examid)
@@ -796,8 +700,6 @@ def main():
     defaults['raw']       = os.environ.get("MRITOOL_RAW_DIR"      ,"./input/scanner")
     defaults['inprocess'] = os.environ.get("MRITOOL_INPROCESS_DIR","./output/inprocess")
     defaults['processed'] = os.environ.get("MRITOOL_PROCESSED_DIR","./output/processed")
-    defaults['tech']      = os.environ.get("MRITOOL_TECH_DIR"     ,"./output/tech")
-    defaults['dailyqc']   = os.environ.get("MRITOOL_DAILYQC_DIR"  ,"./output/DailyQC")
     defaults['logs']      = os.environ.get("MRITOOL_LOGS_DIR"     ,"./output/logs")
     defaults['host']      = os.environ.get("MRITOOL_HOST"         ,"CAMHMR")
     defaults['port']      = os.environ.get("MRITOOL_PORT"         ,"4006")
@@ -840,8 +742,6 @@ Global options:
     --processed-dir=<dir>     Processed exams directory [default: {defaults[processed]}]
     --log-dir=<dir>           Logging directory [default: {defaults[logs]}]
     --pfile-dir=<dir>         Pfile directory [default: {defaults[raw]}]
-    --tech-dir=<dir>          Technologist scans [default: {defaults[tech]}]
-    --dailyqc-dir=<dir>       DailyQC scans [default: {defaults[dailyqc]}]
     --host=<str>              Scanner hostname [default: {defaults[host]}]
     --port=<num>              Scanner port [default: {defaults[port]}]
     --aet=<str>               Scanner AET [default: {defaults[aet]}]
